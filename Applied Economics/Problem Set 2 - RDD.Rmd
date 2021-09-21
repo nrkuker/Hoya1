@@ -1,0 +1,130 @@
+---
+title: "Problem Set 2 - RDD"
+author: "Karan Patel"
+date: "9/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(rdd)
+library(rddensity)
+library(gridExtra)
+library(ivreg)
+library(rqPen)
+
+```
+
+
+``` {r load data}
+
+score = read.csv("/Users/KAP/Documents/School/02 - MSBA/Applied Economics and Modeling/Problem Set 2/STRT601-ProblemSet2-DataSet-testRD-1.csv")
+
+```
+
+
+``` {r q1}
+
+q1 = ggplot(score, aes(x = pretest, y = treat)) +
+  geom_point()
+
+q1
+
+plot(score$pretest,score$posttest) #no discontinuity, looks linear
+plot(score$pretest,score$age)  
+plot(score$pretest,score$ID) 
+hist(score$pretest) #normal distribution
+ggplot(score, aes(x=pretest)) +
+  geom_histogram() +
+  geom_vline(xintercept = 215, colour = "black", linetype = 2)
+
+  
+
+```
+
+
+``` {r q2}
+
+q2 = ggplot(score, aes(x = pretest, y = posttest)) +
+  geom_point()
+
+q2
+
+#density test
+manip <- rddensity(score$pretest, c=215)
+rdplotdensity(manip,score$pretest) #confirms that pdf is continuous - passes test
+
+summary(manip)
+```
+
+
+``` {r q3}
+
+q3 <- ggplot(score, aes(x=pretest, y = posttest, colour = factor(if_else(pretest > 215, 0, 1)))) +
+  geom_point(alpha=0.5) +
+  geom_vline(xintercept = 215, colour = "black", linetype = 2) +
+  stat_smooth(method = "lm", se = F) + 
+  labs(x = "Running Variable (Pretest Score)", y = "Outcome Variable (Post Test Score)") +
+  theme(legend.position = "none")
+
+q3
+
+q3_lm = lm(posttest ~ treat + pretest, score)
+summary(q3_lm)
+
+```
+
+``` {r q4}
+
+q4_lm = lm(posttest ~ treat + pretest + square(pretest), score)
+summary(q4_lm)
+
+q4 <- ggplot(score, aes(x=square(pretest), y = posttest, colour = factor(if_else(square(pretest) > square(215), 0, 1)))) +
+  geom_point(alpha=0.5) +
+  geom_vline(xintercept = square(215), colour = "black", linetype = 2) +
+  stat_smooth(method = "lm", se = F) + 
+  labs(x = "Running Variable (Pretest Score^2)", y = "Outcome Variable (Post Test Score)") +
+  theme(legend.position = "none")
+
+q4
+
+```
+
+
+``` {r q5}
+
+q5_lm = lm(posttest ~ ., score)
+summary(q5_lm)
+
+```
+
+``` {r q6}
+
+
+results <- RDestimate(posttest ~ pretest | gender + frlunch + esol + black + white + hispanic + asian + age, cutpoint = 215, data=score)
+
+summary(results)
+
+plot(results)
+
+
+
+```
+
+
+``` {r q8}
+
+q8_lm <- lm(age ~ pretest, score)
+
+q3 <- ggplot(score, aes(x=pretest, y = age, colour = factor(if_else(pretest > 215, 0, 1)))) +
+  geom_point(alpha=0.5) +
+  geom_vline(xintercept = 215, colour = "black", linetype = 2) +
+  stat_smooth(method = "lm", se = F) + 
+  labs(x = "Running Variable (Pretest Score)", y = "Age") +
+  theme(legend.position = "none")
+q3
+
+```

@@ -14,7 +14,7 @@ data <- import("Capstone/data/Historical Crude Price Data.xlsx",
 str(data)
 colnames(data)
 # limiting vars
-data2 <- data[,c(1, 80:81, 87:101, 132:137)]
+data2 <- data[,c(1, 80, 87:101, 132:137)]
 colnames(data2)
 
 
@@ -39,8 +39,46 @@ data.frame(cbind(date = data$date, diff = t1)) %>%
   ggplot(aes(date, diff)) + geom_line()
 
 # data2[,4:18]
-ref_ts <- ts(data2[,4], frequency = 365, start = c(2015, 299))
+ref_ts <- ts(data2[,3], frequency = 365, start = c(2015, 299))
 plot(ref_ts)
+
+ref_ts_add <- decompose(ref_ts, "additive")
+ref_ts_mult <- decompose(ref_ts, "multiplicative")
+
+plot(ref_ts_add)
+plot(ref_ts_mult)
+
+# why the NAs?
+# testing with marketing dataset
+usliquorsales <- read_csv("~/Dropbox/_GEORGETOWN Dropbox/MARK 601 Strategic Marketing Analytics/MarketingAnalytics/data/usliquorsales.csv")
+usliquorsales %<>% drop_na()
+liq_ts <- ts(usliquorsales[,2], frequency = 12, start = c(1992, 2))
+plot(liq_ts)
+
+liq_ts_add <- decompose(liq_ts, "additive")
+liq_ts_mult <- decompose(liq_ts, "multiplicative")
+
+plot(liq_ts_add)
+plot(liq_ts_mult)
+
+# aha! NAs because of frequency
+weekly <- ts(data2[,3], frequency = 7)
+weekly.tsd <- decompose(weekly, "multiplicative")
+plot(weekly.tsd) + title(sub = "Weekly Frequency")
+
+month <- ts(data2[,3], frequency = 30)
+month.tsd <- decompose(month, "multiplicative")
+plot(month.tsd) + title(sub = "Monthly Frequency")
+
+quarter <- ts(data2[,3], frequency = 120)
+quarter.tsd <- decompose(quarter, "multiplicative")
+plot(quarter.tsd) + title(sub = "Quarterly Frequency")
+
+yearly <- ts(data2[,3], frequency = 365)
+yearly.tsd <- decompose(yearly, "multiplicative")
+plot(yearly.tsd) + title(sub = "Yearly Frequency")
+
+
 
 dfit7 <- auto.arima(ref_ts, seasonal = TRUE)
 dfit7   # 1 order seasonal diff and non-seasonal diff
@@ -49,11 +87,28 @@ Acf(residuals(dfit7))
 Pacf(residuals(dfit7))
 adf.test(residuals(dfit7))
 summary(dfit7)
-coeftest(dfit7)
+
+dfit.m <- auto.arima(month, seasonal = T)
+summary(dfit.m)
+plot(residuals(dfit.m))
+Acf(residuals(dfit.m))
+Pacf(residuals(dfit.m))
+adf.test(residuals(dfit.m))
+
+dfit.q <- auto.arima(quarter, seasonal = T)
+summary(dfit.q)
+plot(residuals(dfit.q))
+Acf(residuals(dfit.q))
+Pacf(residuals(dfit.q))
+adf.test(residuals(dfit.q))
+
+
+
+
 
 
 # use lagged values
-ref_lag <- data2[,4] %>% diff(1)
+ref_lag <- data2[,3] %>% diff(1)
 ref_lag_ts <- ts(ref_lag, frequency = 365, start = c(2015, 299))
 # TS not useful here
 
@@ -71,22 +126,54 @@ forecast_pred <- forecast(fit_predicted, h = 173)
 plot(forecast_pred, main = "")
 lines(ts(ref_ts))
 # just doing the reference crude isn't enough
-# add in DJIA
+# add in DJIA?
 
+# monthly data
+fit.m_predicted <- arima(ts(month[-c(694:866)]), order =c(0,1,0), seasonal = list(order = c(0,1,0), period = 365))
+
+forecast.m_pred <- forecast(fit.m_predicted, h = 173)
+plot(forecast.m_pred, main = "")
+lines(ts(ref_ts))
+# just doing the reference crude isn't enough
+# add in DJIA?
+
+
+
+
+# WITH DJIA ####
 data2_djia <- left_join(data2, djia, by = "date") %>% 
   rename(djia = value)
 sum(is.na(data2_djia))
 visdat::vis_miss(data2_djia)
 
-data2_djia[,c(1,4,25)] %>% filter(is.na(djia))
+data2_djia[,c(1,3,24)] %>% filter(is.na(djia))
 
-ref_ts <- ts(data2_djia[,c(4,25)], frequency = 365, start = c(2015, 299))
-plot(ref_ts)
-sum(is.na(ref_ts))
+dj_ts <- ts(data2_djia$djia, frequency = 365, start = c(2015, 299))
+plot(dj_ts)
+
+# drop NAs
+data2_djia$djia[is.na(data2_djia$djia) == F]
+dj_ts <- ts(data2_djia$djia[is.na(data2_djia$djia) == F], 
+            frequency = 365, start = c(2015, 299))
+plot(dj_ts)
+
+
+dj_ts_add <- decompose(dj_ts, "additive")
+dj_ts_mult <- decompose(dj_ts, "multiplicative")
+
+plot(dj_ts_add)
+plot(dj_ts_mult)
 
 
 
-ts.d <- diffM(ref_ts, d = 1)
+
+refdj_ts <- ts(data2_djia[,c(3,24)], frequency = 365, start = c(2015, 299))
+plot(refdj_ts)
+sum(is.na(refdj_ts))
+
+
+
+ts.d <- diffM(refdj_ts, d = 1)
 var.a <- vars::VAR(ts.d,
                    lag.max = 10, #highest lag order for lag length selection according to the choosen ic
                    ic = "AIC", #information criterion

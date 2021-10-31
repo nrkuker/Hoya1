@@ -129,13 +129,16 @@ lines(ts(ref_ts))
 # add in DJIA?
 
 # monthly data
-fit.m_predicted <- arima(ts(month[-c(694:866)]), order =c(0,1,0), seasonal = list(order = c(0,1,0), period = 365))
+month <- ts(data2[,3], frequency = 30)
+month_short <- ts(data2[-c(694:866), 3], frequency = 30)
+fit.m_predicted <- arima(month_short,
+                         order =c(0,1,0),
+                         seasonal = list(order = c(0,1,0), period = 30))
 
 forecast.m_pred <- forecast(fit.m_predicted, h = 173)
-plot(forecast.m_pred, main = "")
-lines(ts(ref_ts))
-# just doing the reference crude isn't enough
-# add in DJIA?
+plot(forecast.m_pred, ylim = c(25,90))
+lines(month)
+
 
 
 

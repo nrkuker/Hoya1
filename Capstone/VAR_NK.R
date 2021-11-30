@@ -114,6 +114,7 @@ glimpse(data2)
 
 data_diff <- data2 %>% 
   mutate(
+    diff_brent = m_number_dated_brent - m_number_dated_brent,
     diff_forties = forties - m_number_dated_brent,
     diff_oseberg = oseberg - m_number_dated_brent,
     diff_ekofisk = ekofisk - m_number_dated_brent,
@@ -124,7 +125,9 @@ data_diff <- data2 %>%
     diff_duc_dansk = duc_dansk - m_number_dated_brent,
     diff_gulfaks = gulfaks - m_number_dated_brent
   )
+glimpse(data_diff)
 
+brent <- ts(data_diff$diff_brent, frequency = 30)
 forties <- ts(data_diff$diff_forties, frequency = 30)
 oseberg <- ts(data_diff$diff_oseberg, frequency = 30)
 ekofisk <- ts(data_diff$diff_ekofisk, frequency = 30)
@@ -146,9 +149,10 @@ pp.test(flotta_gold)
 pp.test(duc_dansk)
 pp.test(gulfaks)
 
-v2 <- cbind(brent, forties, oseberg, ekofisk, troll, north_sea_basket, statfjord,
+v2 <- cbind(forties, oseberg, ekofisk, troll, north_sea_basket, statfjord,
             flotta_gold, duc_dansk, gulfaks)
 head(v2)
+
 
 lagselect <- VARselect(v2, lag.max = 15, type = "const") # can vary type
 lagselect$selection
@@ -158,14 +162,25 @@ model2 <- vars::VAR(v2, p = 2, type = "const", season = 30, exogen = NULL)
 # diagnostics
 serial2 <- serial.test(model2, lags.pt = 5, type = "PT.asymptotic")
 serial2
-# null is no serial correlation aka autocorrelation so "we can reject it with extreme prejudice"
+# null is no serial correlation aka no autocorrelation. p-val low so "we can reject it with extreme prejudice"
 
 arch2 <- arch.test(model2, lags.multi = 15, multivariate.only = T)
 arch2
 # fail to reject, signify no degree of heteroscedasticity
 
-forecast2 <- predict(model2, n.ahead = 7, ci = 0.95)
 
-par(mfrow = c(1,1))
-fanchart(forecast2, #names = c("forties", "oseberg", "ekofisk"), 
-         xlim = c(840,880))
+VARselect(v2[-(860:866),], lag.max = 15, type = "const")$selection # can vary type
+model_forecast <- vars::VAR(v2[-(860:866),], p = 2, type = "const", season = 30, exogen = NULL)
+forecast2 <- predict(model_forecast, n.ahead = 7, ci = 0.95)
+
+plot(data_diff$diff_forties[860:866], type = "l", col = "black", main = "Forties - Actual (black) vs Predicted (red)")
+lines(forecast2$fcst$forties[,"fcst"], type = "l", col = "red")
+
+plot(data_diff$diff_oseberg[860:866], type = "l", col = "black", main = "Oseberg - Actual (black) vs Predicted (red)")
+lines(forecast2$fcst$oseberg[,"fcst"], type = "l", col = "red")
+
+plot(data_diff$diff_ekofisk[860:866], type = "l", col = "black", main = "Ekofisk - Actual (black) vs Predicted (red)")
+lines(forecast2$fcst$ekofisk[,"fcst"], type = "l", col = "red")
+
+plot(data_diff$diff_troll[860:866], type = "l", col = "black", main = "Troll - Actual (black) vs Predicted (red)")
+lines(forecast2$fcst$troll[,"fcst"], type = "l", col = "red")

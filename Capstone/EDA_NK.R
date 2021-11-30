@@ -14,8 +14,8 @@ data <- import("Capstone/data/Historical Crude Price Data.xlsx",
 str(data)
 colnames(data)
 # limiting vars
-data2 <- data[,c(1, 80, 87:101, 132:137)]
-colnames(data2)
+# data2 <- data[,c(1, 80, 87:101, 132:137)]
+# colnames(data2)
 
 
 djia <- import("Capstone/data/djia.csv", skip = 15, colClasses = c("POSIXct", "numeric"))
@@ -23,6 +23,80 @@ str(djia)
 djia$date[1:10]
 djia$date <- force_tz(djia$date, "UTC")
 djia$date[1:10]
+
+
+
+
+# GRAPHING ####
+data2 <- data[,c(1,87:95,97)]
+
+data_diff <- data2 %>% 
+  mutate(
+    diff_brent = m_number_dated_brent - m_number_dated_brent,
+    diff_forties = forties - m_number_dated_brent,
+    diff_oseberg = oseberg - m_number_dated_brent,
+    diff_ekofisk = ekofisk - m_number_dated_brent,
+    diff_troll = troll - m_number_dated_brent,
+    diff_north_sea_basket = north_sea_basket - m_number_dated_brent,
+    diff_statfjord = statfjord - m_number_dated_brent,
+    diff_flotta_gold = flotta_gold - m_number_dated_brent,
+    diff_duc_dansk = duc_dansk - m_number_dated_brent,
+    diff_gulfaks = gulfaks - m_number_dated_brent
+  )
+# stationarity
+pp.test(data_diff$diff_brent)
+pp.test(data_diff$diff_duc_dansk)
+pp.test(data_diff$diff_ekofisk)
+pp.test(data_diff$diff_flotta_gold)
+pp.test(data_diff$diff_forties)
+pp.test(data_diff$diff_gulfaks)
+pp.test(data_diff$diff_north_sea_basket)
+pp.test(data_diff$diff_oseberg)
+pp.test(data_diff$diff_statfjord)
+pp.test(data_diff$diff_troll)
+
+
+
+data_long <- data2 %>% pivot_longer(names_to = "crude", values_to = "price", cols = m_number_dated_brent:gulfaks)
+
+ggplot(data_long, aes(date, price)) +
+  geom_line(aes(color = crude))
+
+
+data_diff_long <- data_diff %>% dplyr::select(date, diff_brent:diff_gulfaks) %>% 
+  pivot_longer(names_to = "crude", values_to = "price", cols = diff_brent:diff_gulfaks)
+
+data_diff_long %>% 
+  # filter(between(date, "2018-02-20", "2018-07-01")) %>%
+  # filter(crude %in% c("diff_brent", "diff_statfjord", "diff_troll")) %>%
+  ggplot(aes(date, price)) + 
+  geom_line(aes(color = crude))
+  # geom_line(aes(color = reorder(crude, price, median))) + facet_wrap(~reorder(crude, price, median))
+
+# observations:
+  # flotta gold generally less than brent
+  # statfjord, duc dansk, troll, gulfaks have similar trends and similar peaks/valleys (Jan 2017 ish and Feb? 2019)
+    # big drop Q2-ish 2018 observed in these 4 but not in the others
+    # lies, also in flotta gold
+  
+
+
+  # what happened on Dec 27 2016 that everything spiked?
+  # what happened on Apr 17 2017 that everything dropped?
+  # Feb 25 2019 drop, Feb 26 2019 spike (higher than)
+  # recession (?) Apr-Jun 2018
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # UNIVARIATE TIME SERIES DECOMPOSITION ####
@@ -66,7 +140,7 @@ weekly <- ts(data2[,3], frequency = 7)
 weekly.tsd <- decompose(weekly, "multiplicative")
 plot(weekly.tsd) + title(sub = "Weekly Frequency")
 
-month <- ts(data2[,3], frequency = 30)
+month <- ts(data2[,3:11], frequency = 30)
 month.tsd <- decompose(month, "multiplicative")
 plot(month.tsd) + title(sub = "Monthly Frequency")
 
@@ -101,7 +175,6 @@ plot(residuals(dfit.q))
 Acf(residuals(dfit.q))
 Pacf(residuals(dfit.q))
 adf.test(residuals(dfit.q))
-
 
 
 

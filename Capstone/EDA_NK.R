@@ -59,7 +59,9 @@ pp.test(data_diff$diff_troll)
 
 data_long <- data2 %>% pivot_longer(names_to = "crude", values_to = "price", cols = m_number_dated_brent:gulfaks)
 
-ggplot(data_long, aes(date, price)) +
+data_long %>% 
+  # filter(crude %in% c("gulfaks", "flotta_gold")) %>%
+  ggplot(aes(date, price)) +
   geom_line(aes(color = crude))
 
 
@@ -68,7 +70,7 @@ data_diff_long <- data_diff %>% dplyr::select(date, diff_brent:diff_gulfaks) %>%
 
 data_diff_long %>% 
   # filter(between(date, "2018-02-20", "2018-07-01")) %>%
-  # filter(crude %in% c("diff_brent", "diff_statfjord", "diff_troll")) %>%
+  filter(crude %in% c("diff_brent", "diff_gulfaks", "diff_flotta_gold")) %>%
   ggplot(aes(date, price)) + 
   geom_line(aes(color = crude))
   # geom_line(aes(color = reorder(crude, price, median))) + facet_wrap(~reorder(crude, price, median))
@@ -87,10 +89,34 @@ data_diff_long %>%
   # recession (?) Apr-Jun 2018
 
 
+# FOR PRESENTATION
+data_long %>% 
+  filter(crude %in% c("m_number_dated_brent")) %>%
+  mutate(date = as.Date(date)) %>% 
+  ggplot(aes(date, price)) +
+  geom_line(color = "#2c86cb") + 
+  labs(title = "Reference Crude Over Time") + xlab("Date") + ylab("Price (USD)") +
+  scale_y_continuous(labels = scales::dollar_format(), breaks = seq(0,100,10)) +
+  scale_x_date(date_labels = "%b\n%Y", date_breaks = "6 months") +
+  ggthemes::theme_clean() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
 
-
-
-
+data_diff_long %>% 
+  filter(crude %in% c("diff_brent", "diff_gulfaks", "diff_flotta_gold")) %>%
+  mutate(date = as.Date(date)) %>% 
+  ggplot(aes(date, price)) +
+  geom_line(aes(color = crude)) + 
+  labs(title = "Example of Crude Differential Over Time", 
+       subtitle = "Price difference from reference for two crudes of interest",
+       color = "Crude") + 
+  xlab("Date") + ylab("Price Differential (USD)") +
+  scale_y_continuous(labels = scales::dollar_format(), breaks = seq(-3,4,1)) +
+  scale_x_date(date_labels = "%b\n%Y", date_breaks = "6 months") +
+  scale_color_manual(labels = c("Reference", "Flotta Gold", "Gulfaks"), 
+                     values = c("#bba0d8", "#003e7e", "#6caddf")) + 
+  ggthemes::theme_clean() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5))
 
 
 

@@ -342,7 +342,7 @@ corrplot(c, method = "color",
          order  = "FPC",
          # addrect = 6,
          tl.col = "black",
-         tl.cex = 0.8,
+         tl.cex = 0.5,
          tl.srt = 45
 )
 # everything in this dataset moves together
@@ -370,11 +370,12 @@ fviz_eig(pca,
 var <- get_pca_var(pca)
 
 # display as a correlation plot
-var$cor[,1:2] %>% as.data.frame() %>% 
+var$cor[,1:2] %>% as.data.frame() %>% arrange(-Dim.1) %>% 
   as.matrix() %>% 
   corrplot(is.corr = F, tl.col = "black",
            cl.align.text = "l",
            mar = c(0,0,2,0),
+           tl.cex = 0.5,
            title = "Correlations Between Variables & Dimensions")
 
 

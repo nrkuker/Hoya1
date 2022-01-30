@@ -317,6 +317,83 @@ metrics(y_pred = ols4$fitted.values, y_true = train$m_number_dated_brent[-1])
 
 
 
+
+
+
+
+# WITH FINANCIAL DATA
+financial <- import("data/Crude3.csv", na.strings = "#N/A") %>% clean_names()
+
+financial$date %<>% lubridate::as_date(format = "%m/%d/%Y")
+financial$usd_fx_index %<>% as.numeric()
+
+data2 <- data[,c(1, 80, 87:101)]
+join_data <- left_join(data2, financial, by = "date")
+
+data2_djia <- join_data[,-(4:17)]
+
+data2_djia %<>% 
+  cbind(brent_lag1 = lag(data2_djia$m_number_dated_brent, 1))
+
+ols <- lm(m_number_dated_brent ~ #dollar_euros +   
+            usd_fx_index + emerging_market_etf + brent_lag1
+          , data = data2_djia)
+summary(ols)
+# attempts: 
+# all
+# -S&P: FX not signif
+# -avg price: only lag & FX, var looks ok but fails test, uncorrel
+# -dollar euros: best so far
+
+
+CheckNormal(ols)  # 
+CheckSced(ols)    # 
+
+# qqnorm(ols$residuals); qqline(ols$residuals)
+
+dwt(ols) # null = uncorrelated; 
+vif(ols) # 
+
+# OUTLIERS
+cooks.distance(ols) %>% sort(decreasing = T) %>% head(10)
+hatvalues(ols) %>% sort(decreasing = T) %>% head(10)
+
+plot(ols)
+
+
+# STEPWISE SELECTION
+
+data2_djia_noNA <- data2_djia[complete.cases(data2_djia)==T,]
+
+model_start <- glm(m_number_dated_brent ~ brent_lag1, 
+                     data = data2_djia_noNA) 
+model_end   <- glm(m_number_dated_brent ~ brent_lag1 + dollar_euros + avg_price_all +  
+                   s_p_close + usd_fx_index + dow_dji_close + emerging_market_etf,
+                     data = data2_djia_noNA)
+
+# Backward Approach, trace=TRUE, information is printed during the running of step 
+back <- stats::step(model_end, direction = "backward", trace = F)
+summary(back)
+
+# Forward Approach
+forward <- stats::step(model_start, scope = list(lower = model_start, upper = model_end),
+                               direction = "forward", trace = T)
+summary(forward)
+
+# Stepwise Approach
+both <- stats::step(model_start, scope = list(lower = model_start, upper = model_end),
+                            direction = "both", trace = F)
+summary(both)
+
+
+
+
+
+
+
+
+
+
 ################################################################################
 
 # PCA ###

@@ -124,20 +124,73 @@ sum(is.na(join_data)); sum(is.na(data_diff))  # cool cool cool
 
 
 
+# PARTITION
+end <- nrow(join_data)
+start <- end-6
+train <- join_data[-c(start:end),]
+test <- join_data[c(start:end),]
+
+end <- nrow(data_diff)
+start <- end-6
+train_diff <- data_diff[-c(start:end),]
+test_diff <- data_diff[c(start:end),]
+
+
 # CHOOSING LAG LENGTH
   # where join_data is not differenced (non-stationary) 
   # and data_diff is differenced (stationary)
 
-VARselect(join_data, lag.max = 10,
-          type = "const")
-# 1/29 19:04 getting errors. It's Saturday and dinner time and I'm done.
+VARselect(train[, colnames(train) %in% crudes_to_predict],
+          lag.max = 10, 
+          type = "both",
+          season = 250,
+          exogen = train[,19:22])
+
+VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
+          lag.max = 10,
+          type = "both",
+          season = 30,
+          exogen = train_diff[,19:22])
 
 
 
 
+# ESTIMATING MODEL
+
+var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
+                       p = 2,
+                       type = "both",
+                       season = 250,
+                       exogen = train_diff[, 19:22])
+summary(var.model)
+var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22])
+x11(); par(mai=rep(0.4, 4)); plot(var.pred, xlim = c(800,866))
+x11(); fanchart(var.pred, xlim = c(800,866))
+
+var.pred$fcst
+
+var.pred.df <- data.frame(crude = rep(names(var.pred$fcst), 7),
+                          index = rep(1:7, each = 15),
+                          fcst = rep(NA_real_, 7*length(names(var.pred$fcst))))
+count = 0
+for (each in (var.pred$fcst)) {
+  count = 7*count + 1
+  end = count+6
+  var.pred.df[c(count:end), 3] <- each[,"fcst"]
+  # print(names(var.pred$fcst)[each])
+}
+
+var.pred$fcst[[1]][,"fcst"]
 
 
+var.pred1 <- var.pred$fcst[[1]][,"fcst"]
+var.truth1 <- test_diff$m_number_dated_brent
 
+df <- data.frame(index = seq(1:7),
+           pred = var.pred1,
+           actual = var.truth1)
 
+ggplot(df) + geom_line(aes(index, pred))
 
-
+plot(df$index, df$pred)
+# par(mai=c(1.02,0.82,0.82,0.42))

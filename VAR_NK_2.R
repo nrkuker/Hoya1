@@ -18,9 +18,33 @@ pacman::p_load(
 data <- import("data/Historical Crude Price Data.xlsx", 
                sheet = "Essar_Data_Consolidated") %>% clean_names()
 financial <- import("data/Crude3.csv", na.strings = "") %>% clean_names()
-
 financial$date %<>% lubridate::as_date(format = "%m/%d/%Y")
 financial$usd_fx_index %<>% as.numeric()
+
+weather1 <- import("data/Historical Data 16-20.xlsx", 
+                   col_types = c("text", "text", "numeric", "numeric", "numeric", 
+                                 "numeric", "numeric", "numeric", "numeric", "numeric", 
+                                 "numeric", "numeric", "numeric", "numeric", "numeric", 
+                                 "numeric", "text")) %>% clean_names()
+weather1 %<>% mutate(name = as.factor(name),
+                     conditions = as.factor(conditions),
+                     date_time = lubridate::as_date(date_time, format = "%m/%d/%Y"))
+
+weather2 <- import("data/OPEC Weather Data.xlsx", 
+                   col_types = c("text", "text", "numeric", "numeric", "numeric", 
+                                 "numeric", "numeric", "numeric", "numeric", "numeric", 
+                                 "numeric", "numeric", "numeric", "numeric", "numeric", 
+                                 "numeric", "text")) %>% clean_names()
+weather2 %<>% mutate(name = as.factor(name),
+                     conditions = as.factor(conditions),
+                     date_time = lubridate::as_date(date_time, format = "%m/%d/%Y"))
+
+weather <- rbind(weather1, weather2) %>% 
+  filter(name != "Asia, Lima, Perú") %>%    # filtering out fully blank rows
+  filter(!is.na(maximum_temperature))
+
+
+
 
 
 
@@ -158,29 +182,29 @@ VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
 # ESTIMATING MODEL
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
-                       p = 2,
+                       p = 1,
                        type = "both",
-                       season = 250,
+                       season = 62,
                        exogen = train_diff[, 19:22])
-summary(var.model)
+# summary(var.model)
 var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22])
-x11(); par(mai=rep(0.4, 4)); plot(var.pred, xlim = c(800,866))
-x11(); fanchart(var.pred, xlim = c(800,866))
+# x11(); par(mai=rep(0.4, 4)); plot(var.pred, xlim = c(800,866))
+# x11(); fanchart(var.pred, xlim = c(800,866))
 
-var.pred$fcst
+# var.pred$fcst
 
-var.pred.df <- data.frame(crude = rep(names(var.pred$fcst), 7),
-                          index = rep(1:7, each = 15),
-                          fcst = rep(NA_real_, 7*length(names(var.pred$fcst))))
-count = 0
-for (each in (var.pred$fcst)) {
-  count = 7*count + 1
-  end = count+6
-  var.pred.df[c(count:end), 3] <- each[,"fcst"]
-  # print(names(var.pred$fcst)[each])
-}
-
-var.pred$fcst[[1]][,"fcst"]
+# var.pred.df <- data.frame(crude = rep(names(var.pred$fcst), 7),
+#                           index = rep(1:7, each = 15),
+#                           fcst = rep(NA_real_, 7*length(names(var.pred$fcst))))
+# count = 0
+# for (each in (var.pred$fcst)) {
+#   count = 7*count + 1
+#   end = count+6
+#   var.pred.df[c(count:end), 3] <- each[,"fcst"]
+#   # print(names(var.pred$fcst)[each])
+# }
+# 
+# var.pred$fcst[[1]][,"fcst"]
 
 
 var.pred1 <- var.pred$fcst[[1]][,"fcst"]
@@ -190,7 +214,17 @@ df <- data.frame(index = seq(1:7),
            pred = var.pred1,
            actual = var.truth1)
 
-ggplot(df) + geom_line(aes(index, pred))
+ggplot(df) + geom_line(aes(index, pred)) + geom_line(aes(index, actual), color = "red") + 
+  labs(title = "Brent - Differenced Data - Predicted (Black) vs Actual (Red)", 
+       subtitle = "Season = 62 (working days in a quarter)")
 
-plot(df$index, df$pred)
-# par(mai=c(1.02,0.82,0.82,0.42))
+
+
+
+
+
+
+
+
+
+

@@ -15,14 +15,14 @@ pacman::p_load(
   factoextra    # extract and visualize PCA/MFA
 )
 
-data <- import("Capstone/data/Historical Crude Price Data.xlsx", 
+data <- import("data/Historical Crude Price Data.xlsx", 
                sheet = "Essar_Data_Consolidated") %>% clean_names()
 str(data)
 colnames(data)
 
 colnames(data)[!(colnames(data) %like% "m_number")]
 
-djia <- import("Capstone/data/djia.csv", skip = 15, colClasses = c("POSIXct", "numeric"))
+djia <- import("data/djia.csv", skip = 15, colClasses = c("POSIXct", "numeric"))
 str(djia)
 djia$date[1:10]
 djia$date <- force_tz(djia$date, "UTC")
@@ -418,9 +418,7 @@ corrplot(c, method = "color",
          title = "Variable Correlation Plot",
          order  = "FPC",
          # addrect = 6,
-         tl.col = "black",
-         tl.cex = 0.5,
-         tl.srt = 45
+         tl.pos = "n"
 )
 # everything in this dataset moves together
 
@@ -448,11 +446,12 @@ var <- get_pca_var(pca)
 
 # display as a correlation plot
 var$cor[,1:2] %>% as.data.frame() %>% arrange(-Dim.1) %>% 
+  filter(Dim.1<0.7) %>% dim()
   as.matrix() %>% 
   corrplot(is.corr = F, tl.col = "black",
            cl.align.text = "l",
            mar = c(0,0,2,0),
-           tl.cex = 0.5,
+           tl.cex = 0.5, #tl.pos = "n",
            title = "Correlations Between Variables & Dimensions")
 
 

@@ -1,11 +1,11 @@
 # Capstone EDA
 
 pacman::p_load(
-  pacman, rio, tidyverse, magrittr, janitor,
+  pacman, rio, tidyverse, magrittr, janitor, tidyselect,
   tidyselect, lubridate,
   stargazer, data.table,
   forecast, scales, tseries,
-  lmtest,
+  lmtest, urca, egcm, 
   vars, MTS
 )
 
@@ -291,7 +291,150 @@ summary(var.a)
 
 
 
-# MULTIVARIATE TIME SERIES DECOMPOSITION ####
-    # Reference Crude + DJIA #
+################################################################################
 
+# RUN VAR_NK_2.R THRU CREATING data_diff AND join_data AND IMPUTING
+
+crudes_to_predict <- colnames(data)[87:101]
+crudes_no_flat <- colnames(data[c(87:95,97)])
+# omitting: grane,     alvhiem,   asgard,    wti_midlands, eagleford_45
+# dates:    2016-04-04 2017-04-28 2017-04-28 2018-09-20    2018-09-20      one day before
+# dates:    2016-04-01 2017-04-27 2017-04-27 2018-09-19    2018-09-19      where to start
+
+data %>% 
+  # mutate(same = (grane == lag(grane))) %>% 
+  # filter(same == FALSE) %>% 
+  filter(date < as.Date("2018-09-20")) %>% 
+  dplyr::select(date) %>% tail()
+
+# getting rid of repeats
+join_data2 <- join_data
+join_data2$grane[join_data2$date < as.Date("2016-04-01")] <- NA_real_
+join_data2$alvhiem[join_data2$date < as.Date("2017-04-27")] <- NA_real_
+join_data2$asgard[join_data2$date < as.Date("2017-04-27")] <- NA_real_
+join_data2$wti_midlands[join_data2$date < as.Date("2018-09-19")] <- NA_real_
+join_data2$eagleford_45[join_data2$date < as.Date("2018-09-19")] <- NA_real_
+
+
+
+boxplot(join_data2[,3:17])
+# observe smaller range on the crudes without earlier prices
+
+boxplot(join_data2[-c(1:726),3:17])
+# observe more similar ranges when dates limited
+
+
+
+
+
+# stationarity
+CheckStationarity <- function(vector, signif = 0.05, name = "") {
+  output <- tseries::adf.test(vector)
+
+  print(paste0("Augmented Dickey-Fuller Test for variable: ", name))
+  print("Null Hypothesis: Data has unit root. Non-Stationary.")
+  print(paste0("Significance Level = ", signif))
+  print(paste0("Test Statistic = ", output$statistic))
+  print(paste0("No. Lags Chosen = ", output$parameter))
+  
+  if (output$p.value <= signif) {
+    print(paste0(" => P-Value = ", output$p.value, ". Rejecting Null Hypothesis."))
+    print(" => Series is Stationary.")
+  } else {
+    print(paste0(" => P-Value = ", output$p.value, ". Fail to Reject Null Hypothesis."))
+    print(" => Series is Non-Stationary.")
+  }
+  print("---------------")
+}
+
+
+CheckStationarity(join_data2$forties, name = "forties")
+
+for (i in crudes_no_flat) {
+  CheckStationarity(join_data2[[i]], name = i)
+}
+
+
+
+# WHAT THE ACTUAL EVERLIVING FUCK
+# test for nonstationarity of 3-month treasury bills using ADF test
+ur.df(join_data2$forties, 
+      lags = 9, 
+      selectlags = "AIC", 
+      type = "drift")
+#> 
+#> ############################################################### 
+#> # Augmented Dickey-Fuller Test Unit Root / Cointegration Test # 
+#> ############################################################### 
+#> 
+#> The value of the test statistic is: -2.1004 2.2385
+
+# test for nonstationarity of 10-years treasury bonds using ADF test
+ur.df(window(TB10YS, c(1962, 1), c(2012, 4)), 
+      lags = 6, 
+      selectlags = "AIC", 
+      type = "drift")
+#> 
+#> ############################################################### 
+#> # Augmented Dickey-Fuller Test Unit Root / Cointegration Test # 
+#> ############################################################### 
+#> 
+#> The value of the test statistic is: -1.0079 0.5501
+
+# test for nonstationarity of 3-month treasury bills using DF-GLS test
+ur.ers(window(TB3MS, c(1962, 1), c(2012, 4)),
+       model = "constant", 
+       lag.max = 6)
+#> 
+#> ############################################################### 
+#> # Elliot, Rothenberg and Stock Unit Root / Cointegration Test # 
+#> ############################################################### 
+#> 
+#> The value of the test statistic is: -1.8042
+
+# test for nonstationarity of 10-years treasury bonds using DF-GLS test
+ur.ers(window(TB10YS, c(1962, 1), c(2012, 4)),
+       model = "constant", 
+       lag.max = 6)
+#> 
+#> ############################################################### 
+#> # Elliot, Rothenberg and Stock Unit Root / Cointegration Test # 
+#> ############################################################### 
+#> 
+#> The value of the test statistic is: -0.942
+#> 
+#> 
+#> 
+#> 
+#> 
+#> 
+
+for (i in 4:17) {
+  print(egcm(join_data2[,c(3,i)]))
+  
+}
+egcm(join_data2[,c(3,4)])
+
+
+
+
+
+
+
+
+
+
+# FITTING OLS - IF RESID STATIONARY, THEN COINTEGRATED ####
+ols <- lm(north_sea_basket ~ m_number_dated_brent + forties + oseberg + ekofisk + troll +
+            statfjord + flotta_gold + duc_dansk + grane + gulfaks + alvhiem + asgard +
+            wti_midlands + eagleford_45
+          , data = join_data2)
+summary(ols)
+CheckNormal(ols)
+plot(ols)
+plot(ols$residuals, type = "l")  # doesn't look stationary?
+
+CheckStationarity(ols$residuals, name = "OLS Resid")   # but apparently is!
+pp.test(ols$residuals)
+# "If residuals are stationary, we can safely assume that, the given series are really cointegrated."
 

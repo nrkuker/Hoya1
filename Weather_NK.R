@@ -36,8 +36,6 @@ weather <- rbind(weather1, weather2) %>%
   mutate(name = as.factor(name),
          conditions = as.factor(conditions))
 
-table(weather$name)
-
 weather %<>% 
   mutate(region = case_when(
     name == "Australia" ~ "AUS",
@@ -48,6 +46,10 @@ weather %<>%
     name %in% c("Middle East-Saudi Arabia", "Middle East-Iran/Iraq") ~ "ME",
     TRUE ~ NA_character_
   ))
+
+table(weather$name)
+table(weather$region)
+table(weather$name, weather$region)
 
 table(weather$conditions)
 
@@ -99,6 +101,6 @@ ggplot(weather, aes(temperature, precipitation)) + geom_point(aes(color = region
 
 
 weather %>% 
-  filter(region == "EUR") %>% 
-  ggplot(aes(date_time, temperature, color = weathersit)) + geom_point() #+ facet_wrap(~weathersit)
+  filter(region == "EUR" | region == "NA") %>% 
+  ggplot(aes(date_time, temperature, color = weathersit)) + geom_point() + facet_grid(weathersit~region)
 

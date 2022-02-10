@@ -1,11 +1,12 @@
 # VECTOR AUTOREGRESSION TAKE 2
 
+# PREP ####
 pacman::p_load(
   pacman, rio, tidyverse, magrittr, janitor,
   tidyselect, tidyquant, lubridate,
   stargazer, data.table, gridExtra,
   forecast, scales, tseries, tibbletime,
-  lmtest, itsmr, here, fpp2,
+  lmtest, itsmr, here, fpp2, urca, egcm, 
   vars, MTS, car, caret,
   MLmetrics, imputeTS,
   psych,        # EDA
@@ -56,7 +57,21 @@ crudes_no_flat <- colnames(data[c(87:95,97)])
 
 
 
-# STATIONARITY TEST
+# CREATING DIFFERENCED DATA ####
+data2 <- data[,c(1, 80, 87:101)]
+join_data <- left_join(data2, financial, by = "date")
+
+
+data_diff <- join_data[-1,]
+
+data_diff[3:17] <- sapply(data2[, 3:17], function(x) {
+  diff(x, lag = 1)
+})
+
+
+
+
+# STATIONARITY TEST ####
 pp.test_results <- data.frame(crude = rep(NA_character_,length(crudes_to_predict)),
                               p_value = rep(NA_real_,length(crudes_to_predict)))
 for (i in 87:101) {
@@ -66,21 +81,6 @@ for (i in 87:101) {
 pp.test_results %>% 
   mutate(stationary = if_else(p_value<0.05, TRUE, FALSE)) %>% 
   print()
-
-
-
-
-# CREATING DIFFERENCED DATA
-data2 <- data[,c(1, 80, 87:101)]
-join_data <- left_join(data2, financial, by = "date")
-str(join_data)
-
-
-data_diff <- join_data[-1,]
-
-data_diff[3:17] <- sapply(data2[, 3:17], function(x) {
-  diff(x, lag = 1)
-})
 
 
 
@@ -100,35 +100,35 @@ pp.test_results_diff %>%
 
 
 
-# HANDLING MISSING
+# HANDLING MISSING ####
 
 # VARselect doesn't like NAs, how many do I have?
-sum(is.na(join_data)); sum(is.na(data_diff))  # the same
+# sum(is.na(join_data)); sum(is.na(data_diff))  # the same
 
-vis_miss(join_data)   # all in financial data
+# vis_miss(join_data)   # all in financial data
 
-statsNA(join_data$s_p_close)            # 17 missing, only ever 1 in a row
-statsNA(join_data$usd_fx_index)         # 123 missing, mostly 1 in a row but a couple 2 and one 3
-statsNA(join_data$dow_dji_close)        # 17 missing, only ever 1 in a row
-statsNA(join_data$emerging_market_etf)  # 17 missing, only ever 1 in a row
+# statsNA(join_data$s_p_close)            # 17 missing, only ever 1 in a row
+# statsNA(join_data$usd_fx_index)         # 123 missing, mostly 1 in a row but a couple 2 and one 3
+# statsNA(join_data$dow_dji_close)        # 17 missing, only ever 1 in a row
+# statsNA(join_data$emerging_market_etf)  # 17 missing, only ever 1 in a row
 
 
-truth <- join_data$usd_fx_index
-pred <- na_interpolation(join_data$usd_fx_index, option = "linear")
-
-plot(pred-truth, ylim = c(-mean(truth, na.rm=T), mean(truth, na.rm=T)))
-
-for (i in which(is.na(truth)==T)[1:5]) {
-  print(pred[(i-1):(i+1)])
-}
-
-data.frame(date = join_data$date,
-           pred = pred,
-           truth = truth) %>% 
-  filter(date < "2017-01-01") %>% 
-  ggplot(aes(x=date)) + geom_line(aes(y = pred)) + geom_line(aes(y=truth), color = "red")
-
-# ok linear interpolation seems valid, going for it
+# truth <- join_data$usd_fx_index
+# pred <- na_interpolation(join_data$usd_fx_index, option = "linear")
+# 
+# plot(pred-truth, ylim = c(-mean(truth, na.rm=T), mean(truth, na.rm=T)))
+# 
+# for (i in which(is.na(truth)==T)[1:5]) {
+#   print(pred[(i-1):(i+1)])
+# }
+# 
+# data.frame(date = join_data$date,
+#            pred = pred,
+#            truth = truth) %>% 
+#   filter(date < "2017-01-01") %>% 
+#   ggplot(aes(x=date)) + geom_line(aes(y = pred)) + geom_line(aes(y=truth), color = "red")
+# 
+# # ok linear interpolation seems valid, going for it
 
 join_data$s_p_close %<>% na_interpolation(option = "linear")
 join_data$usd_fx_index %<>% na_interpolation(option = "linear")
@@ -142,7 +142,7 @@ data_diff[3:22] <- sapply(join_data[, 3:22], function(x) {
   diff(x, lag = 1)
 })
 
-sum(is.na(join_data)); sum(is.na(data_diff))  # cool cool cool
+# sum(is.na(join_data)); sum(is.na(data_diff))  # cool cool cool
 
 
 
@@ -168,25 +168,52 @@ VARselect(train[, colnames(train) %in% crudes_to_predict],
           lag.max = 10, 
           type = "both",
           season = 250,
-          exogen = train[,19:22])
+          exogen = train[,19:22]) #2
 
 VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
           lag.max = 10,
           type = "both",
           season = 30,
-          exogen = train_diff[,19:22])
+          exogen = train_diff[,19:22]) #1
 
 
 
 
-# ESTIMATING MODEL
+# ESTIMATING MODEL ####
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
                        p = 1,
                        type = "both",
-                       season = 62,
+                       season = 20,
                        exogen = train_diff[, 19:22])
 # summary(var.model)
+
+summary(var.model)$covres # var-covar matrix
+# off-diag != 0 which indicates there is contemporaneous correlation b/t vars
+
+summary(var.model)$corres # correlation matrix
+# CAVEAT correlations do not imply any direction in the underlying causality
+
+t(chol(summary(var.model)$covres))
+
+
+var.irf <- irf(var.model)
+plot(var.irf)
+
+var.fevd <- fevd(var.model)
+plot(var.fevd)
+
+
+
+
+
+
+
+
+
+
+
+# PREDICTING ####
 var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22])
 # x11(); par(mai=rep(0.4, 4)); plot(var.pred, xlim = c(800,866))
 # x11(); fanchart(var.pred, xlim = c(800,866))
@@ -207,16 +234,20 @@ var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22])
 # var.pred$fcst[[1]][,"fcst"]
 
 
-var.pred1 <- var.pred$fcst[[1]][,"fcst"]
-var.truth1 <- test_diff$m_number_dated_brent
+# var.pred1 <- var.pred$fcst[[1]][,"fcst"]
+# var.truth1 <- test_diff$m_number_dated_brent
+# 
+# df <- data.frame(index = seq(1:7),
+#            pred = var.pred1,
+#            actual = var.truth1)
+# 
+# ggplot(df) + geom_line(aes(index, pred)) + geom_line(aes(index, actual), color = "red") + 
+#   labs(title = "Brent - Differenced Data - Predicted (Black) vs Actual (Red)", 
+#        subtitle = "Season = 62 (working days in a quarter)")
 
-df <- data.frame(index = seq(1:7),
-           pred = var.pred1,
-           actual = var.truth1)
+var.pred
 
-ggplot(df) + geom_line(aes(index, pred)) + geom_line(aes(index, actual), color = "red") + 
-  labs(title = "Brent - Differenced Data - Predicted (Black) vs Actual (Red)", 
-       subtitle = "Season = 62 (working days in a quarter)")
+train %>% tail(1)
 
 
 

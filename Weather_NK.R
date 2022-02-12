@@ -104,3 +104,18 @@ weather %>%
   filter(region == "EUR" | region == "NA") %>% 
   ggplot(aes(date_time, temperature, color = weathersit)) + geom_point() + facet_grid(weathersit~region)
 
+
+
+
+df <- weather %>%
+  filter(name %in% c("Europe, Paris, Île-de-France, France", "United States-Houston")) %>%
+  dplyr::select(name, date_time, conditions, weathersit)
+
+table(df$conditions)
+table(df$weathersit)
+
+df %>% pivot_wider(names_from = name, values_from = c(conditions, weathersit)) %>% 
+  rename(condition_EUR = `conditions_Europe, Paris, Île-de-France, France`,
+         conditions_USA = `conditions_United States-Houston`,
+         weathersit_EUR = `weathersit_Europe, Paris, Île-de-France, France`,
+         weathersit_USA = `weathersit_United States-Houston`)

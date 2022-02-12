@@ -27,22 +27,50 @@ weather1 <- import("data/Historical Data 16-20.xlsx",
                                  "numeric", "numeric", "numeric", "numeric", "numeric", 
                                  "numeric", "numeric", "numeric", "numeric", "numeric", 
                                  "numeric", "text")) %>% clean_names()
-weather1 %<>% mutate(name = as.factor(name),
-                     conditions = as.factor(conditions),
-                     date_time = lubridate::as_date(date_time, format = "%m/%d/%Y"))
+weather1 %<>% mutate(date_time = lubridate::as_date(date_time, format = "%m/%d/%Y"))
 
 weather2 <- import("data/OPEC Weather Data.xlsx", 
                    col_types = c("text", "text", "numeric", "numeric", "numeric", 
                                  "numeric", "numeric", "numeric", "numeric", "numeric", 
                                  "numeric", "numeric", "numeric", "numeric", "numeric", 
                                  "numeric", "text")) %>% clean_names()
-weather2 %<>% mutate(name = as.factor(name),
-                     conditions = as.factor(conditions),
-                     date_time = lubridate::as_date(date_time, format = "%m/%d/%Y"))
+weather2 %<>% mutate(date_time = lubridate::as_date(date_time, format = "%m/%d/%Y"))
 
 weather <- rbind(weather1, weather2) %>% 
   filter(name != "Asia, Lima, Perú") %>%    # filtering out fully blank rows
-  filter(!is.na(maximum_temperature))
+  filter(!is.na(maximum_temperature)) %>% 
+  mutate(name = as.factor(name),
+         conditions = as.factor(conditions))
+
+weather %<>% 
+  mutate(region = case_when(
+    name == "Australia" ~ "AUS",
+    name %like% "United States" ~ "NA",
+    name == "South America- Ecuador" ~ "SA",
+    name %in% c("Africa-Angola", "Africa-Nigera") ~ "AFR",
+    name %in% c("Europe, Paris, Île-de-France, France", "Africa, Nocera Umbra, Umbria, Italia") ~ "EUR",
+    name %in% c("Middle East-Saudi Arabia", "Middle East-Iran/Iraq") ~ "ME",
+    TRUE ~ NA_character_
+  ))
+
+weather %<>% 
+  mutate(weathersit = case_when(
+    conditions == "Clear" ~ "Clear",
+    conditions %in% c("Overcast", "Partially cloudy") ~ "Cloudy",
+    conditions %in% c("Rain", "Rain, Overcast", "Rain, Partially cloudy") ~ "Rain",
+    conditions %in% c("Snow", "Snow, Overcast", "Snow, Partially cloudy") ~ "Snow",
+    TRUE ~ NA_character_
+  ))
+
+weather_small <- weather %>% 
+  filter(name %in% c("Europe, Paris, Île-de-France, France", "United States-Houston")) %>% 
+  dplyr::select(name, date_time, conditions, weathersit)
+
+weather_small %<>% pivot_wider(names_from = name, values_from = c(conditions, weathersit)) %>% 
+  rename(conditions_EUR = `conditions_Europe, Paris, Île-de-France, France`,
+         conditions_USA = `conditions_United States-Houston`,
+         weathersit_EUR = `weathersit_Europe, Paris, Île-de-France, France`,
+         weathersit_USA = `weathersit_United States-Houston`)
 
 
 
@@ -59,7 +87,8 @@ crudes_no_flat <- colnames(data[c(87:95,97)])
 
 # CREATING DIFFERENCED DATA ####
 data2 <- data[,c(1, 80, 87:101)]
-join_data <- left_join(data2, financial, by = "date")
+join_data <- left_join(data2, financial, by = "date") %>% 
+  left_join(weather_small, by = c("date" = "date_time"))
 
 
 data_diff <- join_data[-1,]
@@ -135,6 +164,9 @@ join_data$usd_fx_index %<>% na_interpolation(option = "linear")
 join_data$dow_dji_close %<>% na_interpolation(option = "linear")
 join_data$emerging_market_etf %<>% na_interpolation(option = "linear")
 
+# IF SCALING FINANCIAL DATA:
+join_data[,18:22] %<>% scale()
+
 # have to redefine data_diff:
 data_diff <- join_data[-1,]
 
@@ -143,6 +175,9 @@ data_diff[3:22] <- sapply(join_data[, 3:22], function(x) {
 })
 
 # sum(is.na(join_data)); sum(is.na(data_diff))  # cool cool cool
+
+
+
 
 
 
@@ -167,13 +202,13 @@ test_diff <- data_diff[c(start:end),]
 VARselect(train[, colnames(train) %in% crudes_to_predict],
           lag.max = 10, 
           type = "both",
-          season = 250,
+          season = 20,
           exogen = train[,19:22]) #2
 
 VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
           lag.max = 10,
           type = "both",
-          season = 30,
+          season = 20,
           exogen = train_diff[,19:22]) #1
 
 
@@ -181,10 +216,12 @@ VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
 
 # ESTIMATING MODEL ####
 
+SEASONALITY <- 5
+
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
                        p = 1,
                        type = "both",
-                       season = 5,
+                       season = SEASONALITY,
                        exogen = train_diff[, 19:22]
                        )
 # # summary(var.model)
@@ -251,8 +288,7 @@ var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict]
 lastday <- train %>% tail(1)
 
 pred <- data.frame(lastday) %>%
-  dplyr::select(-c("dollar_euros", "avg_price_all", "s_p_close", "usd_fx_index",
-                   "dow_dji_close", "emerging_market_etf"))
+  dplyr::select(date, m_number_dated_brent:eagleford_45)
 
 lower <- pred
 upper <- pred
@@ -273,28 +309,27 @@ pred$date[-1] <- test$date
 
 
 truth <- rbind(lastday, test) %>% 
-  dplyr::select(-c("dollar_euros", "avg_price_all", "s_p_close", "usd_fx_index",
-                   "dow_dji_close", "emerging_market_etf"))
+  dplyr::select(date, m_number_dated_brent:eagleford_45)
 # truth
 
 
-# var.pred2 <- pred$m_number_dated_brent
-# var.truth2 <- c(lastday$m_number_dated_brent, test$m_number_dated_brent)
-# pred.lower <- lower$m_number_dated_brent
-# pred.upper <- upper$m_number_dated_brent
-# 
-# df2 <- data.frame(index = seq(1:8),
-#                   pred = var.pred2,
-#                   actual = var.truth2,
-#                   lower = pred.lower,
-#                   upper = pred.upper)
-# 
-# ggplot(df2) + geom_line(aes(index, pred)) + geom_line(aes(index, actual), color = "red") +
-#   geom_line(aes(index, lower), color = "darkblue", linetype = "dashed") + 
-#   geom_line(aes(index, upper), color = "darkblue", linetype = "dashed") + 
-#   labs(title = "Brent - Predicted (Black) vs Actual (Red)",
-#        subtitle = "With 95% confidence interval, season = 250",
-#        x = "Number of obs. ahead", y = "Price ($)")
+var.pred2 <- pred$m_number_dated_brent
+var.truth2 <- c(lastday$m_number_dated_brent, test$m_number_dated_brent)
+pred.lower <- lower$m_number_dated_brent
+pred.upper <- upper$m_number_dated_brent
+
+df2 <- data.frame(index = seq(1:8),
+                  pred = var.pred2,
+                  actual = var.truth2,
+                  lower = pred.lower,
+                  upper = pred.upper)
+
+ggplot(df2) + geom_line(aes(index, pred)) + geom_line(aes(index, actual), color = "red") +
+  geom_line(aes(index, lower), color = "darkblue", linetype = "dashed") +
+  geom_line(aes(index, upper), color = "darkblue", linetype = "dashed") +
+  labs(title = "Brent - Predicted (Black) vs Actual (Red)",
+       subtitle = paste0("With 95% confidence interval, season = ", SEASONALITY),
+       x = "Number of obs. ahead", y = "Price ($)")
 
 
 # FORECAST EVALUATION ####
@@ -322,5 +357,7 @@ colnames(rmse)[4] <- "season5"
 rmse
 # write.csv(rmse, file = "rmse_VAR.csv")
 # SEASONALITY OF MONTHLY HAS LOWEST RMSE BY SUM AND AVERAGE
+
+t(rmse)
 
 

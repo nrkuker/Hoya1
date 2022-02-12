@@ -184,24 +184,25 @@ VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
                        p = 1,
                        type = "both",
-                       season = 20,
-                       exogen = train_diff[, 19:22])
-# summary(var.model)
-
-summary(var.model)$covres # var-covar matrix
-# off-diag != 0 which indicates there is contemporaneous correlation b/t vars
-
-summary(var.model)$corres # correlation matrix
-# CAVEAT correlations do not imply any direction in the underlying causality
-
-t(chol(summary(var.model)$covres))
-
-
-var.irf <- irf(var.model)
-plot(var.irf)
-
-var.fevd <- fevd(var.model)
-plot(var.fevd)
+                       season = 5,
+                       exogen = train_diff[, 19:22]
+                       )
+# # summary(var.model)
+# 
+# summary(var.model)$covres # var-covar matrix
+# # off-diag != 0 which indicates there is contemporaneous correlation b/t vars
+# 
+# summary(var.model)$corres # correlation matrix
+# # CAVEAT correlations do not imply any direction in the underlying causality
+# 
+# t(chol(summary(var.model)$covres))
+# 
+# 
+# var.irf <- irf(var.model)
+# plot(var.irf)
+# 
+# var.fevd <- fevd(var.model)
+# plot(var.fevd)
 
 
 
@@ -214,7 +215,7 @@ plot(var.fevd)
 
 
 # PREDICTING ####
-var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22])
+# var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22])
 # x11(); par(mai=rep(0.4, 4)); plot(var.pred, xlim = c(800,866))
 # x11(); fanchart(var.pred, xlim = c(800,866))
 
@@ -245,17 +246,81 @@ var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22])
 #   labs(title = "Brent - Differenced Data - Predicted (Black) vs Actual (Red)", 
 #        subtitle = "Season = 62 (working days in a quarter)")
 
-var.pred
+# var.pred
+# 
+lastday <- train %>% tail(1)
 
-train %>% tail(1)
+pred <- data.frame(lastday) %>%
+  dplyr::select(-c("dollar_euros", "avg_price_all", "s_p_close", "usd_fx_index",
+                   "dow_dji_close", "emerging_market_etf"))
+
+lower <- pred
+upper <- pred
 
 
+var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22], ci = 0.95)
+
+for (i in crudes_to_predict) {
+  for (j in 1:nrow(var.pred$fcst[[i]])) {
+    pred[(j+1),i] <- var.pred$fcst[[i]][j,1] + pred[(j),i]
+    lower[(j+1),i] <- var.pred$fcst[[i]][j,2] + pred[(j),i]
+    upper[(j+1),i] <- var.pred$fcst[[i]][j,3] + pred[(j),i]
+  }
+  # print(pred[,i])
+}
+pred$date[-1] <- test$date
+# pred
 
 
+truth <- rbind(lastday, test) %>% 
+  dplyr::select(-c("dollar_euros", "avg_price_all", "s_p_close", "usd_fx_index",
+                   "dow_dji_close", "emerging_market_etf"))
+# truth
 
 
+# var.pred2 <- pred$m_number_dated_brent
+# var.truth2 <- c(lastday$m_number_dated_brent, test$m_number_dated_brent)
+# pred.lower <- lower$m_number_dated_brent
+# pred.upper <- upper$m_number_dated_brent
+# 
+# df2 <- data.frame(index = seq(1:8),
+#                   pred = var.pred2,
+#                   actual = var.truth2,
+#                   lower = pred.lower,
+#                   upper = pred.upper)
+# 
+# ggplot(df2) + geom_line(aes(index, pred)) + geom_line(aes(index, actual), color = "red") +
+#   geom_line(aes(index, lower), color = "darkblue", linetype = "dashed") + 
+#   geom_line(aes(index, upper), color = "darkblue", linetype = "dashed") + 
+#   labs(title = "Brent - Predicted (Black) vs Actual (Red)",
+#        subtitle = "With 95% confidence interval, season = 250",
+#        x = "Number of obs. ahead", y = "Price ($)")
 
 
+# FORECAST EVALUATION ####
 
+resid <- matrix(nrow = nrow(truth)-1, ncol = ncol(truth)-1) %>% as.data.frame()
+colnames(resid) <- colnames(truth)[-1]
+
+# for (i in 2:nrow(truth)) {
+#   resid[]
+# }
+
+# rmse <- matrix(nrow = 15, ncol = 10) %>% as.data.frame()
+# rownames(rmse) <- colnames(truth)[-1]
+
+for (i in 2:ncol(truth)) {
+  rmse_loop <- RMSE(pred[-1,i], truth[-1,i])
+  var <- colnames(pred)[i]
+  print(paste0("RMSE for ", var, ": ", rmse_loop))
+  
+  rmse[(i-1),4] <- rmse_loop
+}
+
+colnames(rmse)[4] <- "season5"
+
+rmse
+# write.csv(rmse, file = "rmse_VAR.csv")
+# SEASONALITY OF MONTHLY HAS LOWEST RMSE BY SUM AND AVERAGE
 
 

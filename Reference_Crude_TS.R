@@ -492,17 +492,6 @@ fviz_pca_var(pca, col.var = "cos2",
 
 
 
-################################################################################
-
-# RUN VAR_NK_2.R THRU CREATING data_diff AND join_data AND IMPUTING
-
-
-
-
-
-
-
-
 
 
 

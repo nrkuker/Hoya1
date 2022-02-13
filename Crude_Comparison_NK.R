@@ -28,9 +28,11 @@ describe(data[,3:15])
 ggplot(data, aes(fct_infreq(origin))) + geom_bar() + 
   labs(x = "Crude Country of Origin", y = "Count")
 
-ggplot(data, aes(wcp2, wcp3, color = origin)) + geom_point() + 
-  geom_text(label = data$crude, nudge_x = 1, nudge_y = -0.01) + 
-  labs(x = "API Gravity", y = "Total Sulfur (% wt)")
+ggplot(data, aes(wcp2, wcp3, color = origin)) + geom_point() +
+  geom_text(label = data$crude, nudge_x = 1.5, nudge_y = -0.009, check_overlap = T) +
+  # geom_text(label = data$crude) + 
+  labs(x = "API Gravity", y = "Total Sulfur (% wt)",
+       title = "Distribution of Crudes by Specific Gravity & Sulfur Content")
 
 
 

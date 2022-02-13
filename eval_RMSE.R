@@ -14,8 +14,8 @@ modname <- paste0("season", SEASONALITY)
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
                        p = 1,
-                       type = "const",
-                       season = NULL,
+                       type = "both",
+                       season = SEASONALITY,
                        exogen = train_diff[, c(2,18:22)]
 )
 

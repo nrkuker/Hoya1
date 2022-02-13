@@ -438,3 +438,45 @@ CheckStationarity(ols$residuals, name = "OLS Resid")   # but apparently is!
 pp.test(ols$residuals)
 # "If residuals are stationary, we can safely assume that, the given series are really cointegrated."
 
+
+
+
+
+
+
+##### 
+
+rmse_loc <- import("rmse_VAR_by_seasonality_financialexogscaled_plusUSDavgprice.xlsx",
+                       sheet = "Sheet1")
+rmse_loc %>% 
+  filter(!is.na(location)) %>% 
+  group_by(location) %>% 
+  summarise(avg_rmse = mean(avg_rmse, na.rm=T), .groups = "drop") %>% 
+  ggplot() + geom_col(aes(location, avg_rmse, fill = location)) +
+  theme(legend.position = "none") + 
+  labs(title = "Avg RMSE by Crude Geographical Origin",
+       x = "Location", y = "Avg. RMSE")
+
+rmse_loc %>% 
+  filter(!is.na(location)) %>% 
+  group_by(location) %>% 
+  summarise(avg_rmse = mean(season62, na.rm=T), .groups = "drop") %>% 
+  ggplot() + geom_col(aes(location, avg_rmse, fill = location)) +
+  theme(legend.position = "none") + 
+  labs(title = "Avg RMSE by Crude Geographical Origin",
+       subtitle = "For model with season = 62",
+       x = "Location", y = "Avg. RMSE")
+
+rmse_loc %>% 
+  filter(!is.na(location)) %>% 
+  group_by(location) %>% 
+  summarise(`All Models` = mean(avg_rmse, na.rm=T),
+            `Quarterly Model` = mean(season62, na.rm=T), 
+            .groups = "drop") %>% 
+  pivot_longer(names_to = "Model", cols = c(`All Models`, `Quarterly Model`)) %>% 
+    ggplot() + 
+  geom_col(aes(location, value, fill = Model, group = Model), position = "dodge") +
+  # theme(legend.position = "none") + 
+  labs(title = "RMSE by Crude Geographical Origin",
+       x = "Location", y = "Avg. RMSE")
+

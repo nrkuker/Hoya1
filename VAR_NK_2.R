@@ -51,7 +51,8 @@ weather %<>%
     name %in% c("Europe, Paris, Île-de-France, France", "Africa, Nocera Umbra, Umbria, Italia") ~ "EUR",
     name %in% c("Middle East-Saudi Arabia", "Middle East-Iran/Iraq") ~ "ME",
     TRUE ~ NA_character_
-  ))
+  )) %>% 
+  mutate(region = as.factor(region))
 
 weather %<>% 
   mutate(weathersit = case_when(
@@ -60,7 +61,8 @@ weather %<>%
     conditions %in% c("Rain", "Rain, Overcast", "Rain, Partially cloudy") ~ "Rain",
     conditions %in% c("Snow", "Snow, Overcast", "Snow, Partially cloudy") ~ "Snow",
     TRUE ~ NA_character_
-  ))
+  )) %>% 
+  mutate(weathersit = as.factor(weathersit))
 
 weather_small <- weather %>% 
   filter(name %in% c("Europe, Paris, Île-de-France, France", "United States-Houston")) %>% 
@@ -216,13 +218,14 @@ VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
 
 # ESTIMATING MODEL ####
 
-SEASONALITY <- 5
+
+SEASONALITY <- 62
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
                        p = 1,
                        type = "both",
                        season = SEASONALITY,
-                       exogen = train_diff[, 19:22]
+                       exogen = train_diff[, c(2,18:22)]
                        )
 # # summary(var.model)
 # 
@@ -294,7 +297,7 @@ lower <- pred
 upper <- pred
 
 
-var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, 19:22], ci = 0.95)
+var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, c(2,18:22)], ci = 0.95)
 
 for (i in crudes_to_predict) {
   for (j in 1:nrow(var.pred$fcst[[i]])) {
@@ -312,11 +315,11 @@ truth <- rbind(lastday, test) %>%
   dplyr::select(date, m_number_dated_brent:eagleford_45)
 # truth
 
-
-var.pred2 <- pred$m_number_dated_brent
-var.truth2 <- c(lastday$m_number_dated_brent, test$m_number_dated_brent)
-pred.lower <- lower$m_number_dated_brent
-pred.upper <- upper$m_number_dated_brent
+CRUDE <- "flotta_gold"
+var.pred2 <- pred[[CRUDE]]
+var.truth2 <- c(lastday[[CRUDE]], test[[CRUDE]])
+pred.lower <- lower[[CRUDE]]
+pred.upper <- upper[[CRUDE]]
 
 df2 <- data.frame(index = seq(1:8),
                   pred = var.pred2,
@@ -324,10 +327,10 @@ df2 <- data.frame(index = seq(1:8),
                   lower = pred.lower,
                   upper = pred.upper)
 
-ggplot(df2) + geom_line(aes(index, pred)) + geom_line(aes(index, actual), color = "red") +
-  geom_line(aes(index, lower), color = "darkblue", linetype = "dashed") +
-  geom_line(aes(index, upper), color = "darkblue", linetype = "dashed") +
-  labs(title = "Brent - Predicted (Black) vs Actual (Red)",
+ggplot(df2) + geom_line(aes(index-1, pred)) + geom_line(aes(index-1, actual), color = "red") +
+  geom_line(aes(index-1, lower), color = "darkblue", linetype = "dashed") +
+  geom_line(aes(index-1, upper), color = "darkblue", linetype = "dashed") +
+  labs(title = paste0(CRUDE, " - Predicted (Black) vs Actual (Red)"),
        subtitle = paste0("With 95% confidence interval, season = ", SEASONALITY),
        x = "Number of obs. ahead", y = "Price ($)")
 

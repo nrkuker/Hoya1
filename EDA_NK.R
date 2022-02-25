@@ -25,6 +25,15 @@ djia$date <- force_tz(djia$date, "UTC")
 djia$date[1:10]
 
 
+opec <- import("data/OPEC_market_indicators.xlsx", sheet = "Indicators")
+
+
+
+
+
+
+
+
 
 
 # GRAPHING ####
@@ -117,6 +126,50 @@ data_diff_long %>%
   ggthemes::theme_clean() +
   theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
         plot.subtitle = element_text(hjust = 0.5))
+
+
+
+
+
+
+
+opec %>% ggplot(aes(date, opec_prod)) + geom_line()
+opec %>% ggplot(aes(date, world_demand)) + geom_line()
+
+
+
+join_data2 %>% pivot_longer(names_to = "crude", values_to = "price", cols = m_number_dated_brent:eagleford_45) %>% 
+  ggplot(aes(date, price)) + 
+  geom_line(aes(color = crude)) 
+
+
+opec2 <- opec %>% 
+  mutate(dateindex = paste0(month, "-", year)) %>% 
+  dplyr::select(-c("date", "month", "year"))
+
+join_data3 <- join_data2 %>% 
+  mutate(dateindex = paste0(lubridate::month(date), "-", lubridate::year(date))) %>% 
+  left_join(y = opec2, by = "dateindex")
+
+join_data3 %>% pivot_longer(names_to = "crude", values_to = "price", cols = m_number_dated_brent:eagleford_45) %>% 
+  ggplot(aes(date, price)) + 
+  geom_line(aes(color = crude)) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -310,11 +363,11 @@ data %>%
 # getting rid of repeats
 join_data2 <- join_data
 join_data2$grane[join_data2$date < as.Date("2016-04-01")] <- NA_real_
-join_data2$alvhiem[join_data2$date < as.Date("2017-04-27")] <- NA_real_
+join_data2$alvheim[join_data2$date < as.Date("2017-04-27")] <- NA_real_
 join_data2$asgard[join_data2$date < as.Date("2017-04-27")] <- NA_real_
 join_data2$wti_midlands[join_data2$date < as.Date("2018-09-19")] <- NA_real_
 join_data2$eagleford_45[join_data2$date < as.Date("2018-09-19")] <- NA_real_
-
+vis_miss(join_data2)
 
 
 boxplot(join_data2[,3:17])

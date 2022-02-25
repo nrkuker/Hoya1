@@ -106,6 +106,25 @@ fviz_pca_var(pca, col.var = "cos2",
              repel = TRUE)
 
 
+pca_label <- cbind(data[,1:2],  as.data.frame(pca$x))
+pca_label
+
+ggplot(pca_label, aes(PC1, PC2, color = origin)) + 
+  geom_text(label = pca_label$crude) +
+  labs(x = "Principal Component 1", y = "Principal Component 2",
+       title = "Similar Crudes Determined by PCA")
+
+
+
+
+
+
+
+
+
+
+
+
 # extract results at individual level
 ind <- get_pca_ind(pca)
 rownames(ind$coord) <- data$crude

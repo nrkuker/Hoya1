@@ -5,9 +5,9 @@
 # SET UP
 seasonal_options <- c(5, 20, 30, 62, 90, 125, 180, 250, 365, NULL)
 count <- 0 
-outputname <- "mae_VAR_by_seasonality_financial&demand"
-mae <- matrix(nrow = 15, ncol = 10) %>% as.data.frame()
-rownames(mae) <- colnames(truth)[-1]
+outputname <- "mape_VAR_by_seasonality_financial&demand"
+mape <- matrix(nrow = 15, ncol = 10) %>% as.data.frame()
+rownames(mape) <- colnames(truth)[-1]
 
 
 # LOOP THRU SEASONALITY
@@ -41,12 +41,12 @@ truth <- rbind(lastday, test) %>%
   dplyr::select(date, m_number_dated_brent:eagleford_45)
 
 for (i in 2:ncol(truth)) {
-  mae_loop <- MAE(pred[-1,i], truth[-1,i])
+  mape_loop <- MAPE(pred[-1,i], truth[-1,i])
   var <- colnames(pred)[i]
-  mae[(i-1),count] <- mae_loop
+  mape[(i-1),count] <- mape_loop
 }
 
-colnames(mae)[count] <- modname
+colnames(mape)[count] <- modname
 
 }
 
@@ -74,18 +74,18 @@ pred$date[-1] <- test$date
 truth <- rbind(lastday, test) %>% 
   dplyr::select(date, m_number_dated_brent:eagleford_45)
 for (i in 2:ncol(truth)) {
-  mae_loop <- MAE(pred[-1,i], truth[-1,i])
+  mape_loop <- MAPE(pred[-1,i], truth[-1,i])
   var <- colnames(pred)[i]
-  mae[(i-1),count] <- mae_loop
+  mape[(i-1),count] <- mape_loop
 }
-colnames(mae)[count] <- modname
+colnames(mape)[count] <- modname
 
 
 
 
 
-# mae
-write.csv(mae, str_c(outputname, ".csv"))
+# mape
+write.csv(mape, str_c(outputname, ".csv"))
 
 
 

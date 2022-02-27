@@ -30,7 +30,17 @@ weather2 <- import("data/OPEC Weather Data.xlsx",
                                  "numeric", "text")) %>% clean_names()
 weather2 %<>% mutate(date_time = lubridate::as_date(date_time, format = "%m/%d/%Y"))
 
-weather <- rbind(weather1, weather2) %>% 
+weather3 <- import("data/North Sea Weather Data - Bergen Norway.csv") %>% clean_names()
+weather3 %<>% 
+  dplyr::select(name, datetime, tempmax, tempmin, temp, precipprob, feelslike, 
+                precip, snow, snowdepth, windspeed, winddir, windgust, visibility,
+                cloudcover, humidity, conditions)
+weather3 %<>% mutate(datetime = lubridate::as_date(datetime, format = "%m/%d/%y"))
+weather3[,3:16] <- sapply(weather3[,3:16], function(x) as.numeric(x))
+colnames(weather3) <- colnames(weather1)
+
+
+weather <- rbind(weather1, weather2, weather3) %>% 
   filter(name != "Asia, Lima, Perú") %>%    # filtering out fully blank rows
   filter(!is.na(maximum_temperature)) %>% 
   mutate(name = as.factor(name),
@@ -42,7 +52,7 @@ weather %<>%
     name %like% "United States" ~ "NA",
     name == "South America- Ecuador" ~ "SA",
     name %in% c("Africa-Angola", "Africa-Nigera") ~ "AFR",
-    name %in% c("Europe, Paris, Île-de-France, France", "Africa, Nocera Umbra, Umbria, Italia") ~ "EUR",
+    name %in% c("Europe, Paris, Île-de-France, France", "Africa, Nocera Umbra, Umbria, Italia", "bergen, norway") ~ "EUR",
     name %in% c("Middle East-Saudi Arabia", "Middle East-Iran/Iraq") ~ "ME",
     TRUE ~ NA_character_
   ))
@@ -55,7 +65,7 @@ table(weather$conditions)
 
 weather %<>% 
   mutate(weathersit = case_when(
-    conditions == "Clear" ~ "Clear",
+    conditions %in% c("Clear") ~ "Clear",
     conditions %in% c("Overcast", "Partially cloudy") ~ "Cloudy",
     conditions %in% c("Rain", "Rain, Overcast", "Rain, Partially cloudy") ~ "Rain",
     conditions %in% c("Snow", "Snow, Overcast", "Snow, Partially cloudy") ~ "Snow",
@@ -100,7 +110,90 @@ ggplot(weather, aes(temperature, heat_index)) + geom_point(aes(color = region), 
 ggplot(weather, aes(temperature, precipitation)) + geom_point(aes(color = region), alpha = 0.5) + facet_wrap(~region)
 
 
+
+ggplot(weather, aes(date_time, minimum_temperature, color = name)) + geom_line() + facet_wrap(~region)
+
 weather %>% 
+  filter(name %in% c("bergen, norway", "South St W, Norwood Young America, MN 55368, United States")) %>% 
+  ggplot(aes(date_time, minimum_temperature, color = name)) + geom_line() + facet_wrap(~name)
+
+
+w <- weather %>% 
+  dplyr::select(date_time, name, minimum_temperature) %>% 
+  pivot_wider(names_from = name, names_prefix = "mintemp_", values_from = minimum_temperature) %>% clean_names() 
+
+weather$minimum_temperature %>% scale()
+attr(scale(weather$minimum_temperature),"scaled:center")
+
+w[,-1] %>% scale(
+  # center = attr(scale(weather$minimum_temperature),"scaled:center"),
+  # scale = attr(scale(weather$minimum_temperature),"scaled:scale")
+) %>% summary()
+
+ww <- weather %>% 
+  dplyr::select(date_time, name, minimum_temperature) 
+ww$minimum_temperature %<>% scale()
+ggplot(ww, aes(date_time, minimum_temperature, color = name)) + geom_line() + facet_wrap(~name)
+
+
+
+ww %<>% 
+  pivot_wider(names_from = name, names_prefix = "mintemp_", values_from = minimum_temperature) %>% clean_names() 
+
+psych::describeBy(minimum_temperature ~ name, data = weather)
+
+join_data[,25] %<>% scale(
+  center = attr(scale(weather$minimum_temperature),"scaled:center"),
+  scale = attr(scale(weather$minimum_temperature),"scaled:scale")
+)
+
+wMin <- weather %>% 
+  group_by(date_time) %>% 
+  summarize(min = min(minimum_temperature))
+
+weather %>% 
+  filter(date_time == as.Date("2016-01-01")) %>% 
+  dplyr::select(name, minimum_temperature)
+
+wMin %>% mutate(index = str_c(date_time, min))
+weather %>% 
+  mutate(index = str_c(date_time, minimum_temperature)) %>% 
+  dplyr::select(index, name)
+  
+
+wMinName <- left_join(
+  wMin %>% mutate(index = str_c(date_time, min)),
+  weather %>% 
+    mutate(index = str_c(date_time, minimum_temperature)) %>% 
+    dplyr::select(index, name),
+  by = "index"
+) %>% 
+  dplyr::select(-index)
+
+wMinName %>% 
+  filter(between(date_time, lower = as.Date("2015-10-20"), upper = as.Date("2019-05-01"))) %>% 
+  group_by(name) %>% 
+  summarise(count = n()) %>% 
+  mutate(pct = count/sum(count)) %>% 
+  arrange(-count)
+
+wMinName %>% 
+  filter(between(date_time, lower = as.Date("2015-10-20"), upper = as.Date("2019-05-01"))) %>% 
+  ggplot(aes(date_time, min, color = name)) + geom_point() +
+  labs(title = "Lowest Minimum Daily Temperature among Locations in our Dataset",
+       x = "Date", y = "Temperature (deg F)", color = "Location") + 
+  # scale_color_manual(labels = c("Italy", "Australia", "Paris", "Iran", "Arkansas",
+  #                               "Ecuador", "Minnesota"),
+  #                    values = ) +
+  scale_color_discrete(labels = c("Norway", "Minnesota")) 
+
+
+
+
+
+
+
+  weather %>% 
   filter(region == "EUR" | region == "NA") %>% 
   ggplot(aes(date_time, temperature, color = weathersit)) + geom_point() + facet_grid(weathersit~region)
 

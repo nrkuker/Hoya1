@@ -42,7 +42,17 @@ weather2 <- import("data/OPEC Weather Data.xlsx",
                                  "numeric", "text")) %>% clean_names()
 weather2 %<>% mutate(date_time = lubridate::as_date(date_time, format = "%m/%d/%Y"))
 
-weather <- rbind(weather1, weather2) %>% 
+weather3 <- import("data/North Sea Weather Data - Bergen Norway.csv") %>% clean_names()
+weather3 %<>% 
+  dplyr::select(name, datetime, tempmax, tempmin, temp, precipprob, feelslike, 
+                precip, snow, snowdepth, windspeed, winddir, windgust, visibility,
+                cloudcover, humidity, conditions)
+weather3 %<>% mutate(datetime = lubridate::as_date(datetime, format = "%m/%d/%y"))
+weather3[,3:16] <- sapply(weather3[,3:16], function(x) as.numeric(x))
+colnames(weather3) <- colnames(weather1)
+
+
+weather <- rbind(weather1, weather2, weather3) %>% 
   filter(name != "Asia, Lima, Perú") %>%    # filtering out fully blank rows
   filter(!is.na(maximum_temperature)) %>% 
   mutate(name = as.factor(name),
@@ -54,7 +64,7 @@ weather %<>%
     name %like% "United States" ~ "NA",
     name == "South America- Ecuador" ~ "SA",
     name %in% c("Africa-Angola", "Africa-Nigera") ~ "AFR",
-    name %in% c("Europe, Paris, Île-de-France, France", "Africa, Nocera Umbra, Umbria, Italia") ~ "EUR",
+    name %in% c("Europe, Paris, Île-de-France, France", "Africa, Nocera Umbra, Umbria, Italia", "bergen, norway") ~ "EUR",
     name %in% c("Middle East-Saudi Arabia", "Middle East-Iran/Iraq") ~ "ME",
     TRUE ~ NA_character_
   )) %>% 
@@ -70,15 +80,29 @@ weather %<>%
   )) %>% 
   mutate(weathersit = as.factor(weathersit))
 
-weather_small <- weather %>% 
-  filter(name %in% c("Europe, Paris, Île-de-France, France", "United States-Houston")) %>% 
-  dplyr::select(name, date_time, conditions, weathersit)
+# weather_small <- weather %>% 
+#   filter(name %in% c("Europe, Paris, Île-de-France, France", "United States-Houston")) %>% 
+#   dplyr::select(name, date_time, conditions, weathersit)
+# 
+# weather_small %<>% pivot_wider(names_from = name, values_from = c(conditions, weathersit)) %>% 
+#   rename(conditions_EUR = `conditions_Europe, Paris, Île-de-France, France`,
+#          conditions_USA = `conditions_United States-Houston`,
+#          weathersit_EUR = `weathersit_Europe, Paris, Île-de-France, France`,
+#          weathersit_USA = `weathersit_United States-Houston`)
 
-weather_small %<>% pivot_wider(names_from = name, values_from = c(conditions, weathersit)) %>% 
-  rename(conditions_EUR = `conditions_Europe, Paris, Île-de-France, France`,
-         conditions_USA = `conditions_United States-Houston`,
-         weathersit_EUR = `weathersit_Europe, Paris, Île-de-France, France`,
-         weathersit_USA = `weathersit_United States-Houston`)
+# weather_small <- weather %>%
+#   filter(name %in% c("South St W, Norwood Young America, MN 55368, United States")) %>%
+#   dplyr::select(name, date_time, minimum_temperature)
+
+weather_small <- left_join(
+  weather %>% group_by(date_time) %>%
+    summarize(min = min(minimum_temperature)) %>% mutate(index = str_c(date_time, min)),
+  weather %>%
+    mutate(index = str_c(date_time, minimum_temperature)) %>%
+    dplyr::select(index, name),
+  by = "index"
+) %>%
+  dplyr::select(-index)
 
 
 
@@ -99,7 +123,7 @@ data2 <- data[,c(1, 80, 87:101)] %>%
 join_data <- left_join(data2, financial, by = "date") %>% 
   left_join(opec2, by = "dateindex") %>% 
   left_join(weather_small, by = c("date" = "date_time")) %>% 
-  dplyr::select(-dateindex)
+  dplyr::select(-c("dateindex", "name"))
 
 
 
@@ -113,16 +137,22 @@ join_data$usd_fx_index %<>% na_interpolation(option = "linear")
 join_data$dow_dji_close %<>% na_interpolation(option = "linear")
 join_data$emerging_market_etf %<>% na_interpolation(option = "linear")
 
-# # IF SCALING FINANCIAL DATA:
-join_data[,c(2,18:22)] %<>% scale()
+# Weather missing
+join_data <- join_data[complete.cases(join_data)==T, ]
 
+# # IF SCALING FINANCIAL DATA:
+join_data[,c(2,18:24)] %<>% scale()
+# join_data[,25] %<>% scale(
+#   center = attr(scale(weather$minimum_temperature),"scaled:center"),
+#   scale = attr(scale(weather$minimum_temperature),"scaled:scale")
+# )
 
 
 
 # have to redefine data_diff:
 data_diff <- join_data[-1,]
 
-data_diff[2:24] <- sapply(join_data[, 2:24], function(x) {
+data_diff[c(2:22,25)] <- sapply(join_data[, c(2:22,25)], function(x) {
   diff(x, lag = 1)
 })
 
@@ -174,7 +204,7 @@ var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict]
                        p = 1,
                        type = "both",
                        season = SEASONALITY,
-                       exogen = train_diff[, c(2,18:24)]
+                       exogen = train_diff[, c(2,18:25)]
                        )
 
 
@@ -193,7 +223,7 @@ lower <- pred
 upper <- pred
 
 
-var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, c(2,18:24)], ci = 0.95)
+var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, c(2,18:25)], ci = 0.95)
 
 for (i in crudes_to_predict) {
   for (j in 1:nrow(var.pred$fcst[[i]])) {
@@ -211,33 +241,13 @@ truth <- rbind(lastday, test) %>%
   dplyr::select(date, m_number_dated_brent:eagleford_45)
 # truth
 
-CRUDE <- "wti_midlands"
-var.pred2 <- pred[[CRUDE]]
-var.truth2 <- c(lastday[[CRUDE]], test[[CRUDE]])
-pred.lower <- lower[[CRUDE]]
-pred.upper <- upper[[CRUDE]]
-
-df2 <- data.frame(index = seq(1:8),
-                  pred = var.pred2,
-                  actual = var.truth2,
-                  lower = pred.lower,
-                  upper = pred.upper)
-
-ggplot(df2) + geom_line(aes(index-1, pred)) + geom_line(aes(index-1, actual), color = "red") +
-  geom_line(aes(index-1, lower), color = "darkblue", linetype = "dashed") +
-  geom_line(aes(index-1, upper), color = "darkblue", linetype = "dashed") +
-  labs(title = paste0(CRUDE, " - Predicted (Black) vs Actual (Red)"),
-       subtitle = paste0("With 95% confidence interval, season = ", SEASONALITY),
-       x = "Number of obs. ahead", y = "Price ($)")
-
-
 
 
 
 # FORECAST EVALUATION ####
 
-resid <- matrix(nrow = nrow(truth)-1, ncol = ncol(truth)-1) %>% as.data.frame()
-colnames(resid) <- colnames(truth)[-1]
+# resid <- matrix(nrow = nrow(truth)-1, ncol = ncol(truth)-1) %>% as.data.frame()
+# colnames(resid) <- colnames(truth)[-1]
 
 # for (i in 2:nrow(truth)) {
 #   resid[]
@@ -262,7 +272,16 @@ resid_long <- left_join(pred_long, truth_long[,c("price_truth", "index")], by = 
 
 resid_long %>% 
   summarise(sum_resid = sum(diff),
-            sum_sq_err = sum(diff2)) %>% view()
+            sum_sq_err = sum(diff2)) %>% as.data.frame()
+
+# need to run eval_MAE.R for below to work
+colSums(mae) %>% sort()
+colMeans(mae) %>% sort()
+
+mae %>% 
+  dplyr::select(season62) %>% 
+  mutate(season62 = round(season62,3)) %>% 
+  arrange(season62)
 
 
 
@@ -273,6 +292,31 @@ resid_long %>%
 
 
 
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+x11(); par(mai=rep(0.4, 4)); fanchart(var.pred, xlim = c(800,820))
+
+
+CRUDE <- "statfjord"
+var.pred2 <- pred[[CRUDE]]
+var.truth2 <- c(lastday[[CRUDE]], test[[CRUDE]])
+pred.lower <- lower[[CRUDE]]
+pred.upper <- upper[[CRUDE]]
+
+df2 <- data.frame(index = seq(1:8),
+                  pred = var.pred2,
+                  actual = var.truth2,
+                  lower = pred.lower,
+                  upper = pred.upper)
+
+ggplot(df2) + geom_line(aes(index-1, pred)) + geom_line(aes(index-1, actual), color = "#ff5000") +
+  geom_line(aes(index-1, lower), color = "#44546a", linetype = "dashed") +
+  geom_line(aes(index-1, upper), color = "#44546a", linetype = "dashed") +
+  labs(title = paste0(CRUDE, " - Predicted (Black) vs Actual (Red)"),
+       subtitle = paste0("With 95% confidence interval, season = ", SEASONALITY),
+       x = "Number of obs. ahead", y = "Price ($)") + 
+  theme_light()
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
 
 
 

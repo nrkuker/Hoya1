@@ -188,7 +188,7 @@ wMinName %>%
   scale_color_discrete(labels = c("Norway", "Minnesota")) 
 
 
-
+wMinName
 
 
 
@@ -212,3 +212,36 @@ df %>% pivot_wider(names_from = name, values_from = c(conditions, weathersit)) %
          conditions_USA = `conditions_United States-Houston`,
          weathersit_EUR = `weathersit_Europe, Paris, Île-de-France, France`,
          weathersit_USA = `weathersit_United States-Houston`)
+
+################################################################################
+
+# TIME SERIES FOR PREDICTION
+wMin <- weather %>% 
+  group_by(date_time) %>% 
+  summarize(min = min(minimum_temperature))
+
+wMinName <- left_join(
+  wMin %>% mutate(index = str_c(date_time, min)),
+  weather %>% 
+    mutate(index = str_c(date_time, minimum_temperature)) %>% 
+    dplyr::select(index, name),
+  by = "index"
+) %>% 
+  filter(between(date_time, lower = as.Date("2015-10-20"), upper = as.Date("2019-07-01"))) %>% 
+  dplyr::select(-index)
+
+wMinName
+
+weather_ts <- ts(wMinName$min, frequency = 30)
+plot(weather_ts)
+
+weather_ts_add <- decompose(weather_ts, "additive")
+weather_ts_mult <- decompose(weather_ts, "multiplicative")
+
+plot(decompose(ts(wMinName$min, frequency = 30), "additive"))
+plot(decompose(ts(wMinName$min, frequency = 62), "additive"))
+plot(decompose(ts(wMinName$min, frequency = 90), "additive"))
+plot(decompose(ts(wMinName$min, frequency = 250), "additive"))
+plot(decompose(ts(wMinName$min, frequency = 365), "additive"))
+
+

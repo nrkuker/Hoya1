@@ -365,7 +365,9 @@ coeftest(dfit6)
 #We use the auto.arima() function to let R build our model with least AIC
 #this function will search through combination of order parameters and provide best set
 #by default it looks at maximum order of size 5 
-dfit7 <- auto.arima(my_ts, seasonal = TRUE)
+my_ts <- ts(wMinName[,c("min")], frequency=365)
+
+dfit7 <- auto.arima(my_ts, seasonal = TRUE, trace = TRUE, stepwise = FALSE)
 plot(residuals(dfit7))
 Acf(residuals(dfit7))
 Pacf(residuals(dfit7))
@@ -373,30 +375,48 @@ Pacf(residuals(dfit7))
 summary(dfit7)
 coeftest(dfit7)
 
+dfit303 <- arima(my_ts, order = c(3,0,3), seasonal = list(order = c(0,1,0), period = 365))
+dfit302 <- arima(my_ts, order = c(3,0,2), seasonal = list(order = c(0,1,0), period = 365))
+
+summary(dfit303)
+summary(dfit302)
+coeftest(dfit303)
+coeftest(dfit302)
+
+plot(residuals(dfit303))
+adf.test(residuals(dfit303))
+Acf(residuals(dfit303))
+Pacf(residuals(dfit303))
+plot(residuals(dfit302))
+adf.test(residuals(dfit302))
+Acf(residuals(dfit302))
+Pacf(residuals(dfit302))
+
+
 #7. Model Validation (n-fold holdout method)
-hold <- window(ts(my_ts), start = 1187)
+hold <- window(ts(my_ts), start = 1212)
 
 #we will forecast data for the last two years (month = 233 to 256)
-fit_predicted <- arima(ts(my_ts[-c(1187:1278)]), order =c(3,0,3), seasonal = list(order = c(0,1,0), period = 365))
+fit_predicted <- arima(ts(my_ts[-c(1212:1278)]), order =c(3,0,2), seasonal = list(order = c(0,1,0), period = 365))
 
 #use the model to forecast values for last 24 months. 
 #Specify forecast horizon h periods ahead of prediction to be made 
 #and use the fitted model to generate those predictions
 
-forecast_pred <- forecast::forecast(fit_predicted, h=92, level=c(75,95))
-plot(forecast_pred, main="Weather ARIMA Model", xlim=c(1000,1278))
+forecast_pred <- forecast::forecast(fit_predicted, h=67, level=c(75,95))
+plot(forecast_pred, main="Weather ARIMA Model", xlim=c(1100,1278))
 lines(ts(my_ts))
 
 forecast_pred$mean
 forecast_pred$lower %>% head()
 forecast_pred$upper %>% head()
 
-weather_pred <- data.frame(date = wMinName$date_time[1187:1278],
-                           mean = forecast_pred$mean,
-                           lower75 = forecast_pred$lower[, "75%"],
-                           lower95 = forecast_pred$lower[, "95%"],
-                           upper75 = forecast_pred$upper[, "75%"],
-                           upper95 = forecast_pred$upper[, "95%"])
+weather_pred <- data.frame(date = wMinName$date_time[1212:1278],
+                           mean = forecast_pred$mean %>% as.numeric(),
+                           lower75 = forecast_pred$lower[, "75%"] %>% as.numeric(),
+                           lower95 = forecast_pred$lower[, "95%"] %>% as.numeric(),
+                           upper75 = forecast_pred$upper[, "75%"] %>% as.numeric(),
+                           upper95 = forecast_pred$upper[, "95%"] %>% as.numeric())
 # write.csv(weather_pred, file = "weather_pred.csv", row.names = F)
 
 

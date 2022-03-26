@@ -237,12 +237,12 @@ var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict]
 # 
 # t(chol(summary(var.model)$covres))
 # 
-# 
-# var.irf <- irf(var.model)
-# plot(var.irf)
-# 
-# var.fevd <- fevd(var.model)
-# plot(var.fevd)
+
+var.irf <- irf(var.model)
+plot(var.irf)
+
+var.fevd <- fevd(var.model)
+plot(var.fevd)
 
 
 

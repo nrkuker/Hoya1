@@ -186,11 +186,11 @@ test_diff <- data_diff[c(start:end),]
 #           season = 20,
 #           exogen = train[,19:24]) #2
 # 
-# VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
-#           lag.max = 10,
-#           type = "both",
-#           season = 20,
-#           exogen = train_diff[,19:24]) #1
+VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
+          lag.max = 10,
+          type = "both",
+          season = 62,
+          exogen = train_diff[, c(2,18:25)]) #1
 
 
 
@@ -208,6 +208,14 @@ var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict]
                        )
 
 
+
+# EVALUATING MODEL ####
+serial.test(var.model, type = "PT.adjusted")
+serial.test(var.model, type = "PT.asymptotic")
+serial.test(var.model, type = "BG")
+serial.test(var.model, type = "ES")
+
+arch.test(var.model, multivariate.only = T)
 
 
 
@@ -298,19 +306,19 @@ x11(); par(mai=rep(0.4, 4)); fanchart(var.pred, xlim = c(800,820))
 
 CRUDE <- "statfjord"
 var.pred2 <- pred[[CRUDE]]
-var.truth2 <- c(lastday[[CRUDE]], test[[CRUDE]])
+# var.truth2 <- c(lastday[[CRUDE]], test[[CRUDE]])
 pred.lower <- lower[[CRUDE]]
 pred.upper <- upper[[CRUDE]]
 
 df2 <- data.frame(index = seq(1:8),
                   pred = var.pred2,
-                  actual = var.truth2,
+                  # actual = var.truth2,
                   lower = pred.lower,
                   upper = pred.upper)
 
-ggplot(df2) + geom_line(aes(index-1, pred)) + geom_line(aes(index-1, actual), color = "#ff5000") +
-  geom_line(aes(index-1, lower), color = "#44546a", linetype = "dashed") +
-  geom_line(aes(index-1, upper), color = "#44546a", linetype = "dashed") +
+ggplot(df2) + geom_line(aes(index, pred)) + #geom_line(aes(index, actual), color = "#ff5000") +
+  geom_line(aes(index, lower), color = "#44546a", linetype = "dashed") +
+  geom_line(aes(index, upper), color = "#44546a", linetype = "dashed") +
   labs(title = paste0(CRUDE, " - Predicted (Black) vs Actual (Red)"),
        subtitle = paste0("With 95% confidence interval, season = ", SEASONALITY),
        x = "Number of obs. ahead", y = "Price ($)") + 

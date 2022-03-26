@@ -103,7 +103,7 @@ crudes_no_flat <- colnames(data[c(87:95,97)])
 
 
 
-# CREATING DIFFERENCED DATA ####
+# HANDLING MISSING & CREATING DIFFERENCED DATA ####
 data2 <- data[,c(1, 80, 87:101)] %>% 
   mutate(dateindex = paste0(lubridate::month(date), "-", lubridate::year(date)))
 data3 <- left_join(data2, financial, by = "date") %>% 
@@ -112,11 +112,6 @@ data3 <- left_join(data2, financial, by = "date") %>%
   dplyr::select(-c("dateindex", "name"))
 
 
-
-
-
-
-# HANDLING MISSING ####
 
 data3$s_p_close %<>% na_interpolation(option = "linear")
 data3$usd_fx_index %<>% na_interpolation(option = "linear")
@@ -206,15 +201,15 @@ for (f in f_list) {
 
 
 # PREPROCESSING FOR REGRESSORS
-exog_reg_proc <- exog_reg
+exog_reg_sc <- exog_reg
 
 # scaling
 centers <- attr(scale(data3[complete.cases(data3) == T,][, c(2, 18:24)]), "scaled:center")
 scales <- attr(scale(data3[complete.cases(data3) == T,][, c(2, 18:24)]), "scaled:scale")
-centers; scales
+# centers; scales
 
-exog_reg_proc <- 
-  lapply(exog_reg_proc, function(x) {
+exog_reg_sc <- 
+  lapply(exog_reg_sc, function(x) {
     cbind(
       date = x[,1],
       scale(
@@ -227,97 +222,86 @@ exog_reg_proc <-
   })
 
 # differencing
-exog_reg_proc[[1]][,c(2:7, 10)]
-
-exog_reg_proc[[10]][, c(2:7, 10)] %>% as.matrix() %>% diff(lag = 1)
-exog_reg_proc[[1]][, c(2:7, 10)] %>% as.matrix() %>% diff(lag = 1)
-exog_reg_proc[[13]][, c(2:7, 10)] %>% as.matrix() %>% diff(lag = 1)
-
-exog_reg_proc[[1]][, c(2:7, 10)] %>% as.matrix() %>% diff()
-
-lapply(exog_reg_proc, function(x) {
-  c(NA_real_,
-    diff(x[, c(2:7, 10)],
-         lag = 1))
+exog_reg_diff <- lapply(exog_reg_sc, function(x) {
+  x[, c(2:7, 10)] <-
+    rbind(rep(NA_real_, 7), diff(as.matrix(x[, c(2:7, 10)]), lag = 1))
+  return(x)
 })
 
-
-data_diff <- join_data[-1,]
-
-data_diff[c(2:22,25)] <- sapply(join_data[, c(2:22,25)], function(x) {
-  diff(x, lag = 1)
-})
+exog_reg_proc <- lapply(exog_reg_diff, function(x) x[-1,])
 
 
-exog_reg_proc[[1]]
+
+
+
 
 
 # GENERATING PREDICTIONS ####
 
+pred_list <- vector("list", length = 15)
+names(pred_list) <- scenarios$name
 
-pred <- join_data %>% tail(1) %>% 
-  dplyr::select(date, m_number_dated_brent:eagleford_45)
-lower <- pred
-upper <- pred
-
-
-
-avg_mkt <- import("data/exog_for_pred.xlsx", sheet = 1) %>% clean_names()
-bear <- import("data/exog_for_pred.xlsx", sheet = 2) %>% clean_names()
-bull <- import("data/exog_for_pred.xlsx", sheet = 3) %>% clean_names()
-neg_shock <- import("data/exog_for_pred.xlsx", sheet = 4) %>% clean_names()
-pos_shock <- import("data/exog_for_pred.xlsx", sheet = 5) %>% clean_names()
-
-pred_outputname <- "pos_shock"
-
-
-
-
-
-
-
-var.pred <- predict(var.model, n.ahead = 14, dumvar = exog_reg[[1]][,-1], ci = 0.95)
-
-for (i in crudes_to_predict) {
-  for (j in 1:nrow(var.pred$fcst[[i]])) {
-    pred[(j+1),i] <- var.pred$fcst[[i]][j,1] + pred[(j),i]
-    lower[(j+1),i] <- var.pred$fcst[[i]][j,2] + pred[(j),i]
-    upper[(j+1),i] <- var.pred$fcst[[i]][j,3] + pred[(j),i]
+count <- 0
+obs <- 7
+for (i in 1:length(exog_reg_proc)) {
+  pred <- join_data %>% tail(1) %>% 
+    dplyr::select(date, m_number_dated_brent:eagleford_45)
+  
+  var.pred <- predict(var.model, n.ahead = obs, dumvar = exog_reg_proc[[i]][1:obs,-1], ci = 0.95)
+  
+  for (i in crudes_to_predict) {
+    for (j in 1:nrow(var.pred$fcst[[i]])) {
+      pred[(j+1),i] <- var.pred$fcst[[i]][j,1] + pred[(j),i]
+    }
   }
+  
+  count <- count + 1
+  pred_list[[count]] <- pred
+  
+  pred_list[[count]][-1, "date"] <- misc_pred$date[1:obs]
+
 }
-pred$date[-1] <- misc_pred$date
-pred
-
-# write.csv(pred, str_c(pred_outputname, ".csv"))
 
 
 
 
+# Converting Predictions from List into Dataframe
 
+pred_df <- matrix(ncol = ncol(pred)+2, nrow = nrow(pred)*length(pred_list)) %>% as.data.frame()
+colnames(pred_df)[1] <- "weather"
+colnames(pred_df)[2] <- "financial"
+colnames(pred_df)[-(1:2)] <- colnames(pred)
+pred_df$date %<>% as.Date()
 
-lastday <- train %>% tail(1)
-
-pred <- data.frame(lastday) %>%
-  dplyr::select(date, m_number_dated_brent:eagleford_45)
-
-lower <- pred
-upper <- pred
-
-
-var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, c(2,18:25)], ci = 0.95)
-
-for (i in crudes_to_predict) {
-  for (j in 1:nrow(var.pred$fcst[[i]])) {
-    pred[(j+1),i] <- var.pred$fcst[[i]][j,1] + pred[(j),i]
-    lower[(j+1),i] <- var.pred$fcst[[i]][j,2] + pred[(j),i]
-    upper[(j+1),i] <- var.pred$fcst[[i]][j,3] + pred[(j),i]
-  }
-  # print(pred[,i])
+count <- 0
+for (i in 1:length(pred_list)) {
+  count <- count + 1
+  
+  start <- i*8-7
+  end <- i*8
+  
+  pred_df[start:end,3:18] <- pred_list[[count]]
+  pred_df[start:end,1] <- scenarios[count,1] %>% as.character() %>% rep(8)
+  pred_df[start:end,2] <- scenarios[count,2] %>% as.character() %>% rep(8)
 }
-pred$date[-1] <- test$date
-# pred
+pred_df
 
 
-truth <- rbind(lastday, test) %>% 
-  dplyr::select(date, m_number_dated_brent:eagleford_45)
-# truth
+
+
+
+
+
+
+
+
+
+
+
+# OUTPUT #######################################################################
+
+# write.csv(pred_df, "predictions_final.csv")
+
+
+
+

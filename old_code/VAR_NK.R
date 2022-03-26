@@ -9,7 +9,7 @@ pacman::p_load(
   vars, MTS
 )
 
-data <- import("Capstone/data/Historical Crude Price Data.xlsx", 
+data <- import("data/Historical Crude Price Data.xlsx", 
                sheet = "Essar_Data_Consolidated") %>% clean_names()
 str(data)
 colnames(data)
@@ -44,7 +44,7 @@ flotta_gold <- ts(data$flotta_gold, frequency = 30)
 duc_dansk <- ts(data$duc_dansk, frequency = 30)
 grane <- ts(data$grane, frequency = 30)
 gulfaks <- ts(data$gulfaks, frequency = 30)
-alvhiem <- ts(data$alvhiem, frequency = 30)
+alvheim <- ts(data$alvheim, frequency = 30)
 asgard <- ts(data$asgard, frequency = 30)
 wti_midlands <- ts(data$wti_midlands, frequency = 30)
 eagleford_45 <- ts(data$eagleford_45, frequency = 30)
@@ -62,18 +62,27 @@ pp.test(flotta_gold)
 pp.test(duc_dansk)
 pp.test(grane)
 pp.test(gulfaks)
-pp.test(alvhiem)
+pp.test(alvheim)
 pp.test(asgard)
 pp.test(wti_midlands)
 pp.test(eagleford_45)
 # all non-stationary
 
 v1 <- cbind(brent, forties, oseberg, ekofisk, troll, north_sea_basket, statfjord,
-            flotta_gold, duc_dansk, grane, gulfaks, alvhiem, asgard, wti_midlands,
+            flotta_gold, duc_dansk, grane, gulfaks, alvheim, asgard, wti_midlands,
             eagleford_45)
 head(v1)
 
 lagselect <- VARselect(v1, lag.max = 15, type = "const") # can vary type
+lagselect$selection
+
+lagselect <- VARselect(v1, lag.max = 15, type = "trend") # can vary type
+lagselect$selection
+
+lagselect <- VARselect(v1, lag.max = 15, type = "both") # can vary type
+lagselect$selection
+
+lagselect <- VARselect(v1, lag.max = 15, type = "none") # can vary type
 lagselect$selection
 
 model1 <- vars::VAR(v1, p = 2, type = "const", season = NULL, exogen = NULL)
@@ -84,6 +93,11 @@ summary(model1)
 serial1 <- serial.test(model1, lags.pt = 5, type = "PT.asymptotic")
 serial1
 # null is no serial correlation aka autocorrelation so "we can reject it with extreme prejudice"
+serial.test(model1, lags.pt = 5, type = "PT.asymptotic")
+serial.test(model1, lags.pt = 5, type = "PT.adjusted")
+serial.test(model1, lags.pt = 5, type = "BG")
+serial.test(model1, lags.pt = 5, type = "ES")
+
 
 arch1 <- arch.test(model1, lags.multi = 15, multivariate.only = T)
 arch1

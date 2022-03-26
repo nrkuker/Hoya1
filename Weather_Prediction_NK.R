@@ -111,6 +111,21 @@ ts_plot <-
   stat_smooth(colour = "green")
 
 ts_plot
+
+wMinName %>% 
+  # pivot_longer(cols = avg_price_all:emerging_market_etf, 
+  #              names_to = "index", values_to = "price") %>% 
+  # filter(index %in% c("dow_dji_close", "s_p_close")) %>%
+  ggplot(aes(date_time, min)) + 
+  geom_line(alpha = 0.4) +
+  xlab("Date") + ylab("Minimum Temperature (Z Scaled)") + 
+  labs(title = "Weather Over Time") +
+  scale_x_date(labels = date_format(format = "%b-%Y"),
+               breaks = date_breaks("4 month")) +
+  stat_smooth()
+
+
+
 class(wMinName)
 #[1] "data.frame"
 

@@ -5,7 +5,7 @@
 # SET UP
 seasonal_options <- c(5, 20, 30, 62, 90, 125, 180, 250, 365, NULL)
 count <- 0 
-outputname <- "mae_VAR_withNorway"
+outputname <- "mae_VAR_lag2"
 mae <- matrix(nrow = 15, ncol = 10) %>% as.data.frame()
 rownames(mae) <- colnames(train_diff)[colnames(train_diff) %in% crudes_to_predict]
 
@@ -18,7 +18,7 @@ count <- count+1
 modname <- paste0("season", i)
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
-                       p = 1,
+                       p = 2,
                        type = "both",
                        season = i,
                        exogen = train_diff[, c(2,18:25)]
@@ -57,7 +57,7 @@ count <- count+1
 modname <- paste0("season", "None")
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
-                       p = 1,
+                       p = 2,
                        type = "const",
                        season = NULL,
                        exogen = train_diff[, c(2,18:25)]

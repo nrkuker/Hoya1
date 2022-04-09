@@ -48,6 +48,7 @@ weather3 %<>%
                 precip, snow, snowdepth, windspeed, winddir, windgust, visibility,
                 cloudcover, humidity, conditions)
 weather3 %<>% mutate(datetime = lubridate::as_date(datetime, format = "%m/%d/%y"))
+weather3 %<>% mutate(across(tempmax:temp, ~ (.x * 1.8)+32))
 weather3[,3:16] <- sapply(weather3[,3:16], function(x) as.numeric(x))
 colnames(weather3) <- colnames(weather1)
 
@@ -162,8 +163,8 @@ misc_pred <- import("data/exog_for_pred.xlsx", sheet = "misc_pred", na = "NA")
 
 
 w_avg <- data.frame(min = weather_pred %>% filter(date %in% misc_pred$date) %>% dplyr::select(mean))
-w_warm <- data.frame(min = weather_pred %>% filter(date %in% misc_pred$date) %>% dplyr::select(upper75))
-w_cool <- data.frame(min = weather_pred %>% filter(date %in% misc_pred$date) %>% dplyr::select(lower75))
+w_warm <- data.frame(min = weather_pred %>% filter(date %in% misc_pred$date) %>% dplyr::select(upper95))
+w_cool <- data.frame(min = weather_pred %>% filter(date %in% misc_pred$date) %>% dplyr::select(lower95))
 
 f_avg <- data.frame(financial_pred %>% filter(date %in% misc_pred$date) %>% dplyr::select(date, index, mean)) %>% 
   pivot_wider(names_from = index, values_from = mean)
@@ -284,9 +285,20 @@ for (i in 1:length(pred_list)) {
   pred_df[start:end,1] <- scenarios[count,1] %>% as.character() %>% rep(8)
   pred_df[start:end,2] <- scenarios[count,2] %>% as.character() %>% rep(8)
 }
-pred_df
 
 
+
+pred_df$date <- as.Date(pred_df$date, "%m/%d/%Y")
+
+
+pred_df %>% 
+  pivot_longer(m_number_dated_brent:eagleford_45, names_to = "crude", values_to = "price") %>% 
+  filter(weather == "w_avg") %>%
+  # filter(crude %in% c("alvheim", "asgard", "eagleford_45", "wti_midlands")) %>%
+  ggplot() + geom_line(aes((date), price, color = crude)) + facet_grid(weather~financial)
+
+pred_df %>% 
+  filter(financial == "f_avg")
 
 
 

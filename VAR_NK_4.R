@@ -18,7 +18,7 @@ pacman::p_load(
 
 data <- import("data/Historical Crude Price Data.xlsx", 
                sheet = "Essar_Data_Consolidated") %>% clean_names()
-financial <- import("data/Crude3.csv", na.strings = "") %>% clean_names()
+financial <- import("data/Crude3.csv", na.strings = "") %>% clean_names() %>% dplyr::select(-avg_price_all)
 financial$date %<>% lubridate::as_date(format = "%m/%d/%Y")
 financial$usd_fx_index %<>% as.numeric()
 
@@ -116,16 +116,15 @@ crudes_to_predict <- colnames(data)[87:101]
 crudes_no_flat <- colnames(data[c(87:95,97)])
   # omitting: grane, alvheim, asgard, wti_midlands, eagleford_45
 
-
+colnames(data)
 
 # CREATING DIFFERENCED DATA ####
-data2 <- data[,c(1, 80, 87:101)] %>% 
+data2 <- data[,c(1, 80, 87:101, 136,132,138:141)] %>% #132
   mutate(dateindex = paste0(lubridate::month(date), "-", lubridate::year(date)))
 join_data <- left_join(data2, financial, by = "date") %>% 
   left_join(opec2, by = "dateindex") %>% 
   left_join(weather_small, by = c("date" = "date_time")) %>% 
   dplyr::select(-c("dateindex", "name"))
-
 
 
 
@@ -142,7 +141,7 @@ join_data$emerging_market_etf %<>% na_interpolation(option = "linear")
 join_data <- join_data[complete.cases(join_data)==T, ]
 
 # # IF SCALING FINANCIAL DATA:
-join_data[,c(2,18:24)] %<>% scale()
+join_data[,c(2,18:(ncol(join_data)-1))] %<>% scale()
 # join_data[,25] %<>% scale(
 #   center = attr(scale(weather$minimum_temperature),"scaled:center"),
 #   scale = attr(scale(weather$minimum_temperature),"scaled:scale")
@@ -153,7 +152,7 @@ join_data[,c(2,18:24)] %<>% scale()
 # have to redefine data_diff:
 data_diff <- join_data[-1,]
 
-data_diff[c(2:22,25)] <- sapply(join_data[, c(2:22,25)], function(x) {
+data_diff[c(2:(ncol(data_diff)-3),ncol(data_diff))] <- sapply(join_data[, c(2:(ncol(data_diff)-3),ncol(data_diff))], function(x) {
   diff(x, lag = 1)
 })
 
@@ -163,18 +162,20 @@ data_diff[c(2:22,25)] <- sapply(join_data[, c(2:22,25)], function(x) {
 
 
 
-# excluding flat
-data_diff <- data_diff[-(1:681),]
+# # excluding flat
+# data_diff <- data_diff[-(1:681),]
 
 
 
 # PARTITION
 end <- nrow(join_data)
+# start <- round(end*0.95)
 start <- end-6
 train <- join_data[-c(start:end),]
 test <- join_data[c(start:end),]
 
 end <- nrow(data_diff)
+# start <- round(end*0.95)
 start <- end-6
 train_diff <- data_diff[-c(start:end),]
 test_diff <- data_diff[c(start:end),]
@@ -182,18 +183,23 @@ test_diff <- data_diff[c(start:end),]
 # # CHOOSING LAG LENGTH
 #   # where join_data is not differenced (non-stationary) 
 #   # and data_diff is differenced (stationary)
-# 
-# VARselect(train[, colnames(train) %in% crudes_to_predict],
+
+# VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
 #           lag.max = 10,
 #           type = "both",
-#           season = 20,
-#           exogen = train[,19:24]) #2
-# 
-VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
+#           season = 62,
+#           exogen = train_diff[, c(2,19:ncol(train_diff))]) #2
+seasonal_options <- c(5, 20, 30, 62, 90, 125, 180, 250, 365, NULL)
+
+for (i in seasonal_options) {
+  
+print(VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
           lag.max = 10,
           type = "both",
-          season = 62,
-          exogen = train_diff[, c(2,18:25)]) #1, 3
+          season = i,
+          # exogen = train_diff[, c(2,18:25)]) #1, 3
+          exogen = train_diff[, c(2,18:ncol(train_diff))])$selection) #1, 3
+}
 
 
 
@@ -201,24 +207,24 @@ VARselect(train_diff[, colnames(train_diff) %in% crudes_to_predict],
 # ESTIMATING MODEL ####
 
 
-SEASONALITY <- 62
+SEASONALITY <- 365
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
                        p = 1,
                        type = "both",
                        season = SEASONALITY,
-                       exogen = train_diff[, c(2,18:25)]
+                       exogen = train_diff[, c(2,18:ncol(train_diff))]
                        )
 
 
 
 # EVALUATING MODEL ####
-serial.test(var.model, type = "PT.adjusted")
-serial.test(var.model, type = "PT.asymptotic")
-serial.test(var.model, type = "BG")
-serial.test(var.model, type = "ES")
-
-arch.test(var.model, multivariate.only = T)
+# serial.test(var.model, type = "PT.adjusted")
+# serial.test(var.model, type = "PT.asymptotic")
+# serial.test(var.model, type = "BG")
+# serial.test(var.model, type = "ES")
+# 
+# arch.test(var.model, multivariate.only = T)
 
 
 
@@ -234,7 +240,7 @@ lower <- pred
 upper <- pred
 
 
-var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, c(2,18:25)], ci = 0.95)
+var.pred <- predict(var.model, n.ahead = nrow(test_diff), dumvar = test_diff[, c(2,18:ncol(test_diff))], ci = 0.95)
 
 for (i in crudes_to_predict) {
   for (j in 1:nrow(var.pred$fcst[[i]])) {
@@ -244,7 +250,7 @@ for (i in crudes_to_predict) {
   }
   # print(pred[,i])
 }
-pred$date[-1] <- test$date
+pred$date[-1] <- test_diff$date
 # pred
 
 
@@ -307,13 +313,13 @@ mae %>%
 x11(); par(mai=rep(0.4, 4)); fanchart(var.pred, xlim = c(800,820))
 
 
-CRUDE <- "m_number_dated_brent"
+CRUDE <- "grane"
 var.pred2 <- pred[[CRUDE]]
 var.truth2 <- c(lastday[[CRUDE]], test[[CRUDE]])
 pred.lower <- lower[[CRUDE]]
 pred.upper <- upper[[CRUDE]]
 
-df2 <- data.frame(index = seq(1:8),
+df2 <- data.frame(index = seq(1:nrow(pred)),
                   pred = var.pred2,
                   actual = var.truth2,
                   lower = pred.lower,

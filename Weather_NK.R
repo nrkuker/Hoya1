@@ -36,6 +36,7 @@ weather3 %<>%
                 precip, snow, snowdepth, windspeed, winddir, windgust, visibility,
                 cloudcover, humidity, conditions)
 weather3 %<>% mutate(datetime = lubridate::as_date(datetime, format = "%m/%d/%y"))
+weather3 %<>% mutate(across(tempmax:temp, ~ (.x * 1.8)+32))
 weather3[,3:16] <- sapply(weather3[,3:16], function(x) as.numeric(x))
 colnames(weather3) <- colnames(weather1)
 
@@ -132,7 +133,7 @@ w[,-1] %>% scale(
 
 ww <- weather %>% 
   dplyr::select(date_time, name, minimum_temperature) 
-ww$minimum_temperature %<>% scale()
+# ww$minimum_temperature %<>% scale()
 ggplot(ww, aes(date_time, minimum_temperature, color = name)) + geom_line() + facet_wrap(~name)
 
 
@@ -181,7 +182,7 @@ wMinName %>%
   filter(between(date_time, lower = as.Date("2015-10-20"), upper = as.Date("2019-05-01"))) %>% 
   ggplot(aes(date_time, min, color = name)) + geom_point() +
   labs(title = "Lowest Minimum Daily Temperature among Locations in our Dataset",
-       x = "Date", y = "Temperature (deg F)", color = "Location") + 
+       x = "Date", y = "Temperature (deg F)", color = "Location")# + 
   # scale_color_manual(labels = c("Italy", "Australia", "Paris", "Iran", "Arkansas",
   #                               "Ecuador", "Minnesota"),
   #                    values = ) +

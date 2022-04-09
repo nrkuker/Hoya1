@@ -37,6 +37,7 @@ weather3 %<>%
                 precip, snow, snowdepth, windspeed, winddir, windgust, visibility,
                 cloudcover, humidity, conditions)
 weather3 %<>% mutate(datetime = lubridate::as_date(datetime, format = "%m/%d/%y"))
+# weather3 %<>% mutate(across(tempmax:temp, ~ (.x * 1.8)+32))
 weather3[,3:16] <- sapply(weather3[,3:16], function(x) as.numeric(x))
 colnames(weather3) <- colnames(weather1)
 
@@ -79,8 +80,13 @@ wMinName <- left_join(
     dplyr::select(index, name),
   by = "index"
 ) %>% 
-  filter(between(date_time, lower = as.Date("2015-10-20"), upper = as.Date("2019-07-01"))) %>% 
+  # filter(between(date_time, lower = as.Date("2015-10-20"), upper = as.Date("2019-07-01"))) %>%
+  filter(between(date_time, lower = as.Date("2019-04-25"), upper = as.Date("2019-05-14"))) %>%
   dplyr::select(-index)
+
+# wMinName <- weather %>%
+#   filter(name %in% c("South St W, Norwood Young America, MN 55368, United States")) %>%
+#   dplyr::select(name, date_time, min = minimum_temperature)
 
 
 

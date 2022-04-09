@@ -4,8 +4,10 @@
 
 # SET UP
 seasonal_options <- c(5, 20, 30, 62, 90, 125, 180, 250, 365, NULL)
+lag_order <- 1
+# seasonal_options <- c(62)
 count <- 0 
-outputname <- "mae_VAR_lag2"
+# outputname <- "mae_wti&brent_m1m2"
 mae <- matrix(nrow = 15, ncol = 10) %>% as.data.frame()
 rownames(mae) <- colnames(train_diff)[colnames(train_diff) %in% crudes_to_predict]
 
@@ -18,17 +20,17 @@ count <- count+1
 modname <- paste0("season", i)
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
-                       p = 2,
+                       p = lag_order,
                        type = "both",
                        season = i,
-                       exogen = train_diff[, c(2,18:25)]
+                       exogen = train_diff[, c(2,18:ncol(train_diff))]
 )
 
 lastday <- train %>% tail(1)
 pred <- data.frame(lastday) %>%
   dplyr::select(date, m_number_dated_brent:eagleford_45)
 
-var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, c(2,18:25)], ci = 0.95)
+var.pred <- predict(var.model, n.ahead = nrow(test_diff), dumvar = test_diff[, c(2,18:ncol(test_diff))], ci = 0.95)
 
 for (i in crudes_to_predict) {
   for (j in 1:nrow(var.pred$fcst[[i]])) {
@@ -57,14 +59,14 @@ count <- count+1
 modname <- paste0("season", "None")
 
 var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict],
-                       p = 2,
-                       type = "const",
+                       p = lag_order,
+                       type = "both",
                        season = NULL,
-                       exogen = train_diff[, c(2,18:25)]
+                       exogen = train_diff[, c(2,18:ncol(train_diff))]
 )
 pred <- data.frame(lastday) %>%
   dplyr::select(date, m_number_dated_brent:eagleford_45)
-var.pred <- predict(var.model, n.ahead = 7, dumvar = test_diff[, c(2,18:25)], ci = 0.95)
+var.pred <- predict(var.model, n.ahead = nrow(test_diff), dumvar = test_diff[, c(2,18:ncol(test_diff))], ci = 0.95)
 for (i in crudes_to_predict) {
   for (j in 1:nrow(var.pred$fcst[[i]])) {
     pred[(j+1),i] <- var.pred$fcst[[i]][j,1] + pred[(j),i]
@@ -85,7 +87,8 @@ colnames(mae)[count] <- modname
 
 
 # mae
-write.csv(mae, str_c(outputname, ".csv"))
+# write.csv(mae, str_c(outputname, ".csv"))
 
 
-
+colMeans(mae) %>% sort()
+apply(mae, 2, sd) %>% sort()

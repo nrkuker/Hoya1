@@ -498,9 +498,65 @@ pp.test(ols$residuals)
 
 
 ##### 
+colnames(data)
 
-rmse_loc <- import("rmse_VAR_by_seasonality_financialexogscaled_plusUSDavgprice.xlsx",
-                       sheet = "Sheet1")
+data %>% 
+  ggplot() + 
+  geom_line(aes(date, ice_brent_m1_london_close), color = "darkblue") +
+  geom_line(aes(date, ice_brent_m2_london_close), color = "steelblue") + 
+  geom_line(aes(date, nymex_wti_m1_london_close), color = "darkred") +
+  geom_line(aes(date, nymex_wti_m2_london_close), color = "salmon")
+
+
+data %>% 
+  ggplot() + 
+  geom_line(aes(date, ice_brent_m1_m2_spread)) +
+  geom_line(aes(date, ice_brent_m1_m3_spread), color = "blue") +
+  geom_line(aes(date, ice_brent_m1_m4_spread), color = "green")
+
+data %>% 
+  ggplot() + 
+  geom_line(aes(date, ice_brent_m1_m2_spread)) +
+  geom_line(aes(date, nymex_wti_m1_m2_spread), color = "red")
+
+data %>% 
+  ggplot() + 
+  geom_line(aes(date, ice_brent_m1_m2_spread), color = "darkblue") +
+  geom_line(aes(date, nymex_wti_m1_m2_spread), color = "darkred")
+
+data %>% dplyr::select(date, ice_brent_m1_m2_spread, nymex_wti_m1_m2_spread) %>% 
+  pivot_longer(cols = c(ice_brent_m1_m2_spread,nymex_wti_m1_m2_spread)) %>% 
+  ggplot() + 
+  geom_boxplot(aes(name, value))
+  
+data %>% 
+  ggplot() + 
+  geom_density(aes(ice_brent_m1_m2_spread), fill = "darkblue", alpha = 0.2) +
+  geom_density(aes(nymex_wti_m1_m2_spread), fill = "darkred", alpha = 0.2)
+
+hist(data$ice_brent_m1_m2_spread)
+hist(data$nymex_wti_m1_m2_spread)
+
+
+data[,c(138:141)] %>% summary()
+data[,c(138:141)] %>% describe()
+
+
+
+
+
+
+
+
+
+
+
+##### 
+
+rmse_loc <- import("mae_final.xlsx", sheet = "Sheet1")
+
+rmse_loc %>% arrange(-season62)
+
 rmse_loc %>% 
   filter(!is.na(location)) %>% 
   group_by(location) %>% 
@@ -513,19 +569,19 @@ rmse_loc %>%
 rmse_loc %>% 
   filter(!is.na(location)) %>% 
   group_by(location) %>% 
-  summarise(avg_rmse = mean(season62, na.rm=T), .groups = "drop") %>% 
-  ggplot() + geom_col(aes(location, avg_rmse, fill = location)) +
+  summarise(avg_mae = mean(season62, na.rm=T), .groups = "drop") %>% 
+  ggplot() + geom_col(aes(location, avg_mae, fill = location)) +
   theme(legend.position = "none") + 
-  labs(title = "Avg RMSE by Crude Geographical Origin",
+  labs(title = "MAE by Crude Geographical Origin",
        subtitle = "For model with season = 62",
-       x = "Location", y = "Avg. RMSE")
+       x = "Location", y = "MAE")
 
 rmse_loc %>% 
   filter(!is.na(location)) %>% 
   group_by(location) %>% 
-  summarise(`All Models` = mean(avg_rmse, na.rm=T),
+  summarise(`All Models` = mean(avg_mae, na.rm=T),
             `Quarterly Model` = mean(season62, na.rm=T), 
-            .groups = "drop") %>% 
+            .groups = "drop") %>% mutate(pct_diff = `Quarterly Model`/`All Models`-1)
   pivot_longer(names_to = "Model", cols = c(`All Models`, `Quarterly Model`)) %>% 
     ggplot() + 
   geom_col(aes(location, value, fill = Model, group = Model), position = "dodge") +

@@ -16,8 +16,10 @@ pacman::p_load(
   factoextra    # extract and visualize PCA/MFA
 )
 
-
-financial <- import("data/Crude3.csv", na.strings = "") %>% clean_names()
+data <- import("data/Historical Crude Price Data.xlsx", 
+               sheet = "Essar_Data_Consolidated") %>% clean_names()
+data$date %<>% lubridate::as_date()
+financial <- import("data/Crude3.csv", na.strings = "") %>% clean_names() #%>% dplyr::select(-avg_price_all)
 financial$date %<>% lubridate::as_date(format = "%m/%d/%Y")
 financial$usd_fx_index %<>% as.numeric()
 
@@ -114,6 +116,43 @@ financial %>% mutate(across(avg_price_all:emerging_market_etf, scale)) %>%
   scale_x_date(labels = date_format(format = "%b-%Y"),
                breaks = date_breaks("4 month")) +
   stat_smooth(aes(colour = index))
+
+
+# for final white paper
+data2 <- data[,c(1, 136,132)] # ,138:139
+fin_join <- left_join(financial, data2, by = "date")
+
+fin_join %>% 
+  mutate(across(avg_price_all:ice_brent_m1_london_close, scale)) %>% 
+  mutate(futures = (nymex_wti_m1_london_close+ice_brent_m1_london_close)/2) %>% 
+  pivot_longer(cols = c(avg_price_all:emerging_market_etf, futures), 
+               names_to = "index", values_to = "price") %>% 
+  ggplot(aes(date, price, group = index)) + 
+  geom_line(aes(color = index), alpha = 0.25) +
+  xlab("Date") + ylab("Price (Z Scaled)") + labs(color = "Index") +
+  
+  
+  # scale_color_brewer(
+  #   palette="Oranges",
+  #   labels = c("Avg. Price (All Crudes)", "DJIA", "Emerging Market ETF",
+  #              "Oil Futures", "S&P", "USD FX Index")) +
+  
+  # scale_color_manual(
+  #   labels = c("Avg. Price (All Crudes)", "DJIA", "Emerging Market ETF",
+  #              "Oil Futures", "S&P", "USD FX Index"), 
+  #   values = c("#999999", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#E69F00")) +
+  
+  scale_color_manual(
+    labels = c("Avg. Price (All Crudes)", "DJIA", "Emerging Market ETF",
+               "Oil Futures", "S&P", "USD FX Index"),
+    values = c("#515151", "#ffdccc", "#feb999", "#ff9665", "#bf3c00", "#7f2800")) +
+  
+  
+  
+  scale_x_date(labels = date_format(format = "%b %Y"),
+               breaks = date_breaks("6 month")) +
+  stat_smooth(aes(colour = index), se = FALSE) + 
+  theme_classic()
 
 
 
@@ -408,7 +447,7 @@ summary(dfit6)
 coeftest(dfit6)
 
 
-financial_ts <-ts(financial[,-1])
+financial_ts <-ts(financial[,3:6])
 my_ts <- ts(financial_ts)
 
 adf.test(my_ts)
@@ -453,13 +492,13 @@ Pacf(residuals(dfit4))
 summary(dfit4)
 coeftest(dfit4)
 
-dfit5 <- auto.arima(financial_ts[,5], seasonal = FALSE, trace = TRUE, stepwise = FALSE)
-plot(residuals(dfit5))
-adf.test(residuals(dfit5))
-Acf(residuals(dfit5))
-Pacf(residuals(dfit5))
-summary(dfit5)
-coeftest(dfit5)
+# dfit5 <- auto.arima(financial_ts[,5], seasonal = FALSE, trace = TRUE, stepwise = FALSE)
+# plot(residuals(dfit5))
+# adf.test(residuals(dfit5))
+# Acf(residuals(dfit5))
+# Pacf(residuals(dfit5))
+# summary(dfit5)
+# coeftest(dfit5)
 
 # 2 & 4 (S&P and Dow) have much higher error metrics
 
@@ -472,7 +511,7 @@ fit_predicted1 <- arima(ts(financial_ts[-c(856:866),1]), order = c(dfit1$arma[1]
 fit_predicted2 <- arima(ts(financial_ts[-c(856:866),2]), order = c(dfit2$arma[1], dfit2$arma[6], dfit2$arma[2]))
 fit_predicted3 <- arima(ts(financial_ts[-c(856:866),3]), order = c(dfit3$arma[1], dfit3$arma[6], dfit3$arma[2]))
 fit_predicted4 <- arima(ts(financial_ts[-c(856:866),4]), order = c(dfit4$arma[1], dfit4$arma[6], dfit4$arma[2]))
-fit_predicted5 <- arima(ts(financial_ts[-c(856:866),5]), order = c(dfit5$arma[1], dfit5$arma[6], dfit5$arma[2]))
+# fit_predicted5 <- arima(ts(financial_ts[-c(856:866),5]), order = c(dfit5$arma[1], dfit5$arma[6], dfit5$arma[2]))
 
 #use the model to forecast values for last 24 months. 
 #Specify forecast horizon h periods ahead of prediction to be made 
@@ -494,9 +533,9 @@ forecast_pred4 <- forecast::forecast(fit_predicted4, h=11, level=c(75,95))
 plot(forecast_pred4, main="Financial ARIMA Model", xlim=c(767,867)) #
 lines(ts(financial_ts[,4]))
 
-forecast_pred5 <- forecast::forecast(fit_predicted5, h=11, level=c(75,95))
-plot(forecast_pred5, main="Financial ARIMA Model", xlim=c(767,867)) #
-lines(ts(financial_ts[,5]))
+# forecast_pred5 <- forecast::forecast(fit_predicted5, h=11, level=c(75,95))
+# plot(forecast_pred5, main="Financial ARIMA Model", xlim=c(767,867)) #
+# lines(ts(financial_ts[,5]))
 
 
 
@@ -511,7 +550,7 @@ forecast_pred1 <- forecast::forecast(dfit1, h=14, level=c(75,99))
 forecast_pred2 <- forecast::forecast(dfit2, h=14, level=c(75,99))
 forecast_pred3 <- forecast::forecast(dfit3, h=14, level=c(75,99))
 forecast_pred4 <- forecast::forecast(dfit4, h=14, level=c(75,99))
-forecast_pred5 <- forecast::forecast(dfit5, h=14, level=c(75,99))
+# forecast_pred5 <- forecast::forecast(dfit5, h=14, level=c(75,99))
 
 
 
@@ -583,27 +622,27 @@ finance_pred4 <-
     upper99_diff = c(NA_real_, diff(upper99))
   )
 
-finance_pred5 <-
-  data.frame(
-    date = seq.Date(from = tail(financial$date, 1) + 1, by = 1, length.out = 14),
-    mean = forecast_pred5$mean %>% as.numeric(),
-    lower75 = forecast_pred5$lower[, "75%"] %>% as.numeric(),
-    lower99 = forecast_pred5$lower[, "99%"] %>% as.numeric(),
-    upper75 = forecast_pred5$upper[, "75%"] %>% as.numeric(),
-    upper99 = forecast_pred5$upper[, "99%"] %>% as.numeric()
-  ) %>%
-  mutate(
-    mean_diff = c(NA_real_, diff(mean)),
-    lower75_diff = c(NA_real_, diff(lower75)),
-    lower99_diff = c(NA_real_, diff(lower99)),
-    upper75_diff = c(NA_real_, diff(upper75)),
-    upper99_diff = c(NA_real_, diff(upper99))
-  )
+# finance_pred5 <-
+#   data.frame(
+#     date = seq.Date(from = tail(financial$date, 1) + 1, by = 1, length.out = 14),
+#     mean = forecast_pred5$mean %>% as.numeric(),
+#     lower75 = forecast_pred5$lower[, "75%"] %>% as.numeric(),
+#     lower99 = forecast_pred5$lower[, "99%"] %>% as.numeric(),
+#     upper75 = forecast_pred5$upper[, "75%"] %>% as.numeric(),
+#     upper99 = forecast_pred5$upper[, "99%"] %>% as.numeric()
+#   ) %>%
+#   mutate(
+#     mean_diff = c(NA_real_, diff(mean)),
+#     lower75_diff = c(NA_real_, diff(lower75)),
+#     lower99_diff = c(NA_real_, diff(lower99)),
+#     upper75_diff = c(NA_real_, diff(upper75)),
+#     upper99_diff = c(NA_real_, diff(upper99))
+#   )
 
-# write.csv(finance_pred1, file = "avgprice_pred.csv", row.names = F)
-# write.csv(finance_pred2, file = "s&p_pred.csv", row.names = F)
-# write.csv(finance_pred3, file = "fx_pred.csv", row.names = F)
-# write.csv(finance_pred4, file = "dow_pred.csv", row.names = F)
+# write.csv(finance_pred1, file = "s&p_pred.csv", row.names = F)
+# write.csv(finance_pred2, file = "fx_pred.csv", row.names = F)
+# write.csv(finance_pred3, file = "dow_pred.csv", row.names = F)
+# write.csv(finance_pred4, file = "emergingmarketetf_pred.csv", row.names = F)
 # write.csv(finance_pred5, file = "emergingmarketetf_pred.csv", row.names = F)
 
 

@@ -119,7 +119,7 @@ crudes_no_flat <- colnames(data[c(87:95,97)])
 colnames(data)
 
 # CREATING DIFFERENCED DATA ####
-data2 <- data[,c(1, 80, 87:101, 136,132,138:141)] %>% #132
+data2 <- data[,c(1, 80, 87:101, 136,132,138:139)] %>% #132
   mutate(dateindex = paste0(lubridate::month(date), "-", lubridate::year(date)))
 join_data <- left_join(data2, financial, by = "date") %>% 
   left_join(opec2, by = "dateindex") %>% 
@@ -219,13 +219,24 @@ var.model <- vars::VAR(train_diff[, colnames(train_diff) %in% crudes_to_predict]
 
 
 # EVALUATING MODEL ####
-# serial.test(var.model, type = "PT.adjusted")
-# serial.test(var.model, type = "PT.asymptotic")
-# serial.test(var.model, type = "BG")
-# serial.test(var.model, type = "ES")
-# 
-# arch.test(var.model, multivariate.only = T)
+serial.test(var.model, type = "PT.adjusted")
+serial.test(var.model, type = "PT.asymptotic")
+serial.test(var.model, type = "BG")
+serial.test(var.model, type = "ES")
 
+arch.test(var.model, multivariate.only = T)
+
+var1_residuals <- resid(var.model)
+acf(var1_residuals)
+acf(var1_residuals[,1])
+acf(var1_residuals[,2])
+ccf(var1_residuals[,1],var1_residuals[,2])
+
+irf(var.model)
+irf.brent <- irf(var.model, impulse = "m_number_dated_brent", seed = 4463)
+plot(irf.brent)
+
+irf.all <- irf(var.model, seed = 4463)
 
 
 
@@ -370,3 +381,47 @@ pred$date[-1] <- test$date
 # pred
 
 # write.csv(pred, str_c(pred_outputname, ".csv"))
+
+
+
+### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### ### 
+
+
+
+
+# for paper
+data2 %>% str()
+data2_small <- data2 %>% dplyr::select(date, m_number_dated_brent:eagleford_45)
+
+vis_miss(data2_small)
+
+data2_fin <- data2 %>% dplyr::select(date, nymex_wti_m1_london_close:ice_brent_m1_m2_spread)
+summary(data2_fin)
+data2_fin_diff <- sapply(data2_fin[,-1], function(x) diff(x, lag=1)) %>% as.data.frame()
+summary(data2_fin_diff)
+
+sapply(data2_fin[,-1], function(x) median(x))
+sapply(data2_fin_diff, function(x) median(x))
+
+
+# getting rid of repeats
+data2_small <- data2 %>% dplyr::select(date, m_number_dated_brent:eagleford_45)
+data2_small$grane[data2_small$date < as.Date("2016-04-01")] <- NA_real_
+data2_small$alvheim[data2_small$date < as.Date("2017-04-27")] <- NA_real_
+data2_small$asgard[data2_small$date < as.Date("2017-04-27")] <- NA_real_
+data2_small$wti_midlands[data2_small$date < as.Date("2018-09-19")] <- NA_real_
+data2_small$eagleford_45[data2_small$date < as.Date("2018-09-19")] <- NA_real_
+
+vis_miss(data2_small) + 
+  scale_fill_manual(name = "",
+                    values = c("#d0cece",
+                               "#ed7d31"),
+                    labels = c("Present\n(83.2%)",
+                               "Missing\n(16.8%)")) + 
+  theme(plot.margin = unit(c(0,50,5,5), "points"))
+  
+  scale_y_date(labels = date_format(format = "%b %Y"),
+                              breaks = date_breaks("6 month"))
+  
+  
+  

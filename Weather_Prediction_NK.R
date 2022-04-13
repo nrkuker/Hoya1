@@ -37,7 +37,7 @@ weather3 %<>%
                 precip, snow, snowdepth, windspeed, winddir, windgust, visibility,
                 cloudcover, humidity, conditions)
 weather3 %<>% mutate(datetime = lubridate::as_date(datetime, format = "%m/%d/%y"))
-# weather3 %<>% mutate(across(tempmax:temp, ~ (.x * 1.8)+32))
+weather3 %<>% mutate(across(tempmax:temp, ~ (.x * 1.8)+32))
 weather3[,3:16] <- sapply(weather3[,3:16], function(x) as.numeric(x))
 colnames(weather3) <- colnames(weather1)
 
@@ -128,7 +128,7 @@ wMinName %>%
   labs(title = "Weather Over Time") +
   scale_x_date(labels = date_format(format = "%b-%Y"),
                breaks = date_breaks("4 month")) +
-  stat_smooth()
+  stat_smooth(method = "gam")
 
 
 
@@ -388,16 +388,38 @@ coeftest(dfit6)
 #by default it looks at maximum order of size 5 
 my_ts <- ts(wMinName[,c("min")], frequency=365)
 
-dfit7 <- auto.arima(my_ts, seasonal = TRUE, trace = TRUE, stepwise = FALSE)
+dfit7 <- auto.arima(my_ts, seasonal = TRUE, trace = TRUE, stepwise = TRUE,
+                    max.p = 5,
+                    max.q = 5,
+                    max.d = 12,
+                    max.P = 2,
+                    max.Q = 2,
+                    max.D = 1)
 plot(residuals(dfit7))
 Acf(residuals(dfit7))
 Pacf(residuals(dfit7))
-
 summary(dfit7)
 coeftest(dfit7)
 
+dfit7n <- auto.arima(my_ts, seasonal = FALSE, trace = TRUE, stepwise = TRUE,
+                    max.p = 5,
+                    max.q = 5,
+                    max.d = 12,
+                    max.P = 2,
+                    max.Q = 2,
+                    max.D = 1)
+plot(residuals(dfit7n))
+Acf(residuals(dfit7n))
+Pacf(residuals(dfit7n))
+summary(dfit7n)
+coeftest(dfit7n)
+
+
 dfit303 <- arima(my_ts, order = c(3,0,3), seasonal = list(order = c(0,1,0), period = 365))
 dfit302 <- arima(my_ts, order = c(3,0,2), seasonal = list(order = c(0,1,0), period = 365))
+dfit401 <- arima(my_ts, order = c(4,0,1), seasonal = list(order = c(0,1,0), period = 365))
+
+
 
 summary(dfit303)
 summary(dfit302)
@@ -414,31 +436,68 @@ Acf(residuals(dfit302))
 Pacf(residuals(dfit302))
 
 
+summary(dfit401)
+coeftest(dfit401)
+plot(residuals(dfit401))
+adf.test(residuals(dfit401))
+Acf(residuals(dfit401))
+Pacf(residuals(dfit401))
+
+
+
 #7. Model Validation (n-fold holdout method)
 hold <- window(ts(my_ts), start = 1212)
 
 #we will forecast data for the last two years (month = 233 to 256)
-fit_predicted <- arima(ts(my_ts[-c(1212:1278)]), order =c(3,0,2), seasonal = list(order = c(0,1,0), period = 365))
+fit_predicted <- arima(ts(my_ts[-c(1212:1280)]), order =c(4,0,1), seasonal = list(order = c(0,1,0), period = 365))
 
 #use the model to forecast values for last 24 months. 
 #Specify forecast horizon h periods ahead of prediction to be made 
 #and use the fitted model to generate those predictions
 
-forecast_pred <- forecast::forecast(fit_predicted, h=67, level=c(75,95))
-plot(forecast_pred, main="Weather ARIMA Model", xlim=c(1100,1278))
+forecast_pred <- forecast::forecast(fit_predicted, h=69, level=c(75,99))
+plot(forecast_pred, main="Weather ARIMA Model", xlim=c(1100,1280))
 lines(ts(my_ts))
 
 forecast_pred$mean
 forecast_pred$lower %>% head()
 forecast_pred$upper %>% head()
 
-weather_pred <- data.frame(date = wMinName$date_time[1212:1278],
+weather_pred <- data.frame(date = wMinName$date_time[1212:1280],
                            mean = forecast_pred$mean %>% as.numeric(),
                            lower75 = forecast_pred$lower[, "75%"] %>% as.numeric(),
-                           lower95 = forecast_pred$lower[, "95%"] %>% as.numeric(),
+                           lower99 = forecast_pred$lower[, "99%"] %>% as.numeric(),
                            upper75 = forecast_pred$upper[, "75%"] %>% as.numeric(),
-                           upper95 = forecast_pred$upper[, "95%"] %>% as.numeric())
+                           upper99 = forecast_pred$upper[, "99%"] %>% as.numeric())
 # write.csv(weather_pred, file = "weather_pred.csv", row.names = F)
+
+
+
+
+
+
+
+summary(wMinName)
+
+wDiff <- wMinName[-1,] 
+wDiff$min <- wMinName$min %>% diff(lag = 1)
+summary(wDiff)
+
+plot(wMinName$min)
+plot(wDiff$min)
+
+wDiff %>% arrange(min)
+
+quantile(wDiff$min, probs=c(0.05,0.075,0.1))
+quantile(wDiff$min, probs=c(0.95,0.925,0.9))
+
+
+
+
+
+
+
+
 
 
 #8. Forecasting

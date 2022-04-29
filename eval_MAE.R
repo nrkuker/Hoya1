@@ -7,7 +7,7 @@ seasonal_options <- c(5, 20, 30, 62, 90, 125, 180, 250, 365, NULL)
 lag_order <- 1
 # seasonal_options <- c(62)
 count <- 0 
-# outputname <- "mae_wti&brent_m1m2"
+outputname <- "mae_all"
 mae <- matrix(nrow = 15, ncol = 10) %>% as.data.frame()
 rownames(mae) <- colnames(train_diff)[colnames(train_diff) %in% crudes_to_predict]
 
@@ -87,7 +87,7 @@ colnames(mae)[count] <- modname
 
 
 # mae
-# write.csv(mae, str_c(outputname, ".csv"))
+write.csv(mae, str_c(outputname, ".csv"))
 
 
 colMeans(mae) %>% sort()
